@@ -1,0 +1,122 @@
+# Heyo Code Audit
+
+Provider-agnostic, verified AI code auditing for GitHub pull requests. Heyo reads
+the PR diff and repository context, discovers candidate issues, verifies each
+candidate in a separate Pi session, and reports one GitHub Check plus an optional
+updatable PR comment.
+
+## Install
+
+```yaml
+name: Heyo Code Audit
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: heyo-code-audit-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: heyo-sh/heyo-code-audit@v1
+        with:
+          provider: openai
+          model: gpt-5.6-terra
+          api-key: ${{ secrets.OPENAI_API_KEY }}
+          github-token: ${{ github.token }}
+```
+
+Supported MVP providers are `openai`, `anthropic`, and `openrouter`.
+`checks` accepts any comma-separated subset of `security`, `regression`,
+`product-gap`, `functional`, and `nonfunctional`; all are on by default.
+
+| Input                                | Default                 |
+| ------------------------------------ | ----------------------- |
+| `provider`                           | `openai`                |
+| `model`                              | Stable provider default |
+| `api-key`, `github-token`            | Required                |
+| `verification`                       | `true`                  |
+| `report`                             | `check-and-comment`     |
+| `comment-on-clean`                   | `false`                 |
+| `fail-on`                            | `high`                  |
+| `paths`                              | Entire repository       |
+| `incremental`                        | `true`                  |
+| `max-pr-commits` / `max-new-commits` | `100` / `20`            |
+
+Use `unlimited` only for either commit limit when the associated repository
+policy permits it. `report: comment` and `report: none` intentionally produce
+no GitHub Check, so they do not retain incremental state.
+
+## Behavior and safety
+
+The released action owns its policy, prompts, response schemas, verification
+rules, and Pi integration. There is no configuration file and no input for a
+prompt, command, provider URL, extension, skill, schema, or tool permission.
+
+Pi receives only Heyo-owned tools: bounded file reads and search, PR diff and
+structure inspection, and, during verification, a fixed `git diff --check`
+command. It cannot load `AGENTS.md`, `SYSTEM.md`, Pi extensions, repository
+skills, or an unrestricted shell. Repository content is handled as untrusted
+data; sensitive-looking values are redacted from model-visible tool output and
+published reports. API keys are supplied only through Pi's provider key resolver.
+
+The action uses `pull_request`, never `pull_request_target`. A fork with no API
+key is skipped without attempting an audit.
+
+On later pushes Heyo finds the latest compatible machine state embedded in its
+completed Check. It audits only the delta, then re-verifies all active prior
+findings and deduplicates the result. A base change, non-ancestor head,
+configuration or policy change, invalid state, disabled incremental mode, or an
+unreliable prior run causes a full audit. Commit limits are checked before Pi is
+created; a limit breach publishes `neutral` and never advances audit state.
+
+Immediately before writing, Heyo re-reads the pull request head. A stale run
+publishes neither a Check, comment, nor state.
+
+## Development
+
+```sh
+bun install --frozen-lockfile
+bun run lint
+bun run typecheck
+bun run test:coverage
+bun run build
+```
+
+`dist/action.js` is the committed, self-contained JavaScript action used by
+GitHub. CI rebuilds it and fails if the committed bundle differs. The repository
+also includes CodeQL, Dependabot, Changesets-driven release automation, and
+concurrency-safe CI adapted from the Heyo documentation project.
+
+## Releases
+
+The action is released as one unit through `@heyo-sh/heyo-code-audit`, even
+though its implementation uses internal workspaces. Create a Changeset for each
+consumer-visible change:
+
+```sh
+bun run changeset
+```
+
+Select `@heyo-sh/heyo-code-audit` and an appropriate SemVer bump. When that PR
+reaches `main`, automation creates or updates a version PR. Merging the version
+PR creates an immutable `vX.Y.Z` tag and GitHub Release, then moves the matching
+stable major tag such as `v1`. Pre-releases do not move a stable major tag.
+
+Before enabling this workflow in GitHub, allow Actions to create pull requests
+in **Settings → Actions → General**. If tag protection is enabled, allow the
+release workflow to create immutable version tags and move the major tag.
