@@ -1,0 +1,19 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@3.1.1/schema.json",
+  "changelog": "@changesets/cli/changelog",
+  "commit": false,
+  "fixed": [],
+  "linked": [],
+  "access": "public",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch",
+  "ignore": [
+    "@heyo-sh/code-audit-core",
+    "@heyo-sh/code-audit-runtime-pi",
+    "@heyo-sh/code-audit-reporter-github"
+  ],
+  "privatePackages": {
+    "version": true,
+    "tag": false
+  }
+}

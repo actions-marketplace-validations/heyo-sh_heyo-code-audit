@@ -1,0 +1,33 @@
+{
+  "name": "@heyo-sh/heyo-code-audit",
+  "version": "1.0.0",
+  "description": "Provider-agnostic, verified AI code audit action for GitHub pull requests.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "heyo-code-audit": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "action.yml",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "bun": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist --target node && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@actions/core": "2.0.3",
+    "@heyo-sh/code-audit-core": "workspace:*",
+    "@heyo-sh/code-audit-reporter-github": "workspace:*",
+    "@heyo-sh/code-audit-runtime-pi": "workspace:*"
+  }
+}

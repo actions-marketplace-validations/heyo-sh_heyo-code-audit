@@ -2,8 +2,8 @@
 
 Provider-agnostic, verified AI code auditing for GitHub pull requests. Heyo reads
 the PR diff and repository context, discovers candidate issues, verifies each
-candidate in a separate Pi session, and reports one GitHub Check plus an optional
-updatable PR comment.
+candidate in a separate Pi session, and publishes a GitHub Check and/or an
+updatable PR comment according to the selected reporting mode.
 
 ## Install
 
@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -40,22 +40,32 @@ jobs:
           github-token: ${{ github.token }}
 ```
 
-Supported MVP providers are `openai`, `anthropic`, and `openrouter`.
-`checks` accepts any comma-separated subset of `security`, `regression`,
-`product-gap`, `functional`, and `nonfunctional`; all are on by default.
+## Providers and checks
 
-| Input                                | Default                 |
-| ------------------------------------ | ----------------------- |
-| `provider`                           | `openai`                |
-| `model`                              | Stable provider default |
-| `api-key`, `github-token`            | Required                |
-| `verification`                       | `true`                  |
-| `report`                             | `check-and-comment`     |
-| `comment-on-clean`                   | `false`                 |
-| `fail-on`                            | `high`                  |
-| `paths`                              | Entire repository       |
-| `incremental`                        | `true`                  |
-| `max-pr-commits` / `max-new-commits` | `100` / `20`            |
+Heyo accepts every provider bundled with the installed Pi version; there is no
+Heyo-specific provider allowlist. The action forwards `api-key` only, so use a
+Pi provider that authenticates with one API key. Providers that need ambient
+cloud credentials or OAuth are outside this action's authentication model.
+
+`checks` accepts a comma-separated subset of `security`, `regression`,
+`product-gap`, `functional`, and `nonfunctional`. Omit `checks` or pass an empty
+value to enable all five checks. Malformed provider and unknown check
+identifiers fail configuration validation before the audit starts. Pi rejects a
+provider that is not in its bundled catalog.
+
+| Input                                | Default                                                                   |
+| ------------------------------------ | ------------------------------------------------------------------------- |
+| `provider`                           | `openai`                                                                  |
+| `model`                              | First bundled Pi model for the provider (`Pi catalog default` in reports) |
+| `api-key`, `github-token`            | Required                                                                  |
+| `checks`                             | All five checks                                                           |
+| `verification`                       | `true`                                                                    |
+| `report`                             | `check-and-comment`                                                       |
+| `comment-on-clean`                   | `false`                                                                   |
+| `fail-on`                            | `high`                                                                    |
+| `paths`                              | Entire repository                                                         |
+| `incremental`                        | `true`                                                                    |
+| `max-pr-commits` / `max-new-commits` | `100` / `20`                                                              |
 
 Use `unlimited` only for either commit limit when the associated repository
 policy permits it. `report: comment` and `report: none` intentionally produce
@@ -72,7 +82,12 @@ structure inspection, and, during verification, a fixed `git diff --check`
 command. It cannot load `AGENTS.md`, `SYSTEM.md`, Pi extensions, repository
 skills, or an unrestricted shell. Repository content is handled as untrusted
 data; sensitive-looking values are redacted from model-visible tool output and
-published reports. API keys are supplied only through Pi's provider key resolver.
+published reports. Path checks are applied again after symlinks resolve, so a
+permitted-looking link cannot expose a blocked file. API keys are supplied only
+through Pi's provider key resolver.
+
+The collected PR diff is bounded to 160 kB. An oversized diff is truncated and
+marked as such instead of causing the audit to fail before it reaches Pi.
 
 The action uses `pull_request`, never `pull_request_target`. A fork with no API
 key is skipped without attempting an audit.
@@ -83,6 +98,9 @@ findings and deduplicates the result. A base change, non-ancestor head,
 configuration or policy change, invalid state, disabled incremental mode, or an
 unreliable prior run causes a full audit. Commit limits are checked before Pi is
 created; a limit breach publishes `neutral` and never advances audit state.
+If a complete state would exceed GitHub's Check-output limit, Heyo still
+publishes the report without that state; a later run uses an earlier compatible
+checkpoint or performs a full audit.
 
 Immediately before writing, Heyo re-reads the pull request head. A stale run
 publishes neither a Check, comment, nor state.
@@ -98,7 +116,8 @@ bun run build
 ```
 
 `dist/action.js` is the committed, self-contained JavaScript action used by
-GitHub. CI rebuilds it and fails if the committed bundle differs. The repository
+GitHub. CI requires it to be tracked, rebuilds it, and fails if the committed
+bundle differs. The repository
 also includes CodeQL, Dependabot, Changesets-driven release automation, and
 concurrency-safe CI adapted from the Heyo documentation project.
 

@@ -1,0 +1,62 @@
+name: Heyo Code Audit
+description: Provider-agnostic, verified AI code auditing for pull requests.
+author: Heyo
+branding:
+  icon: shield
+  color: purple
+inputs:
+  provider:
+    description: Pi provider identifier for a provider that accepts one API key.
+    required: false
+    default: openai
+  model:
+    description: Provider-specific model identifier; defaults to Pi's first bundled model for the provider.
+    required: false
+  api-key:
+    description: API key for the selected provider.
+    required: true
+  github-token:
+    description: GitHub token used only to read PR metadata and publish reports.
+    required: true
+  checks:
+    description: Comma-separated checks to enable.
+    required: false
+  verification:
+    description: Verify every candidate in a separate Pi session.
+    required: false
+    default: "true"
+  report:
+    description: "Reporting mode: check, comment, check-and-comment, or none."
+    required: false
+    default: check-and-comment
+  comment-on-clean:
+    description: Publish or update the report comment when there are no findings.
+    required: false
+    default: "false"
+  fail-on:
+    description: Minimum finding severity that fails the audit.
+    required: false
+    default: high
+  paths:
+    description: Comma-separated repository globs to audit.
+    required: false
+  incremental:
+    description: Audit only changes since the last compatible Heyo state.
+    required: false
+    default: "true"
+  max-pr-commits:
+    description: Maximum commits for a full audit, or unlimited.
+    required: false
+    default: "100"
+  max-new-commits:
+    description: Maximum newly added commits for an incremental audit, or unlimited.
+    required: false
+    default: "20"
+outputs:
+  outcome:
+    description: published, skipped, stale, or skipped-fork-without-api-key.
+  conclusion:
+    description: GitHub Check conclusion when a report was produced.
+runs:
+  using: node20
+  main: dist/action.js
