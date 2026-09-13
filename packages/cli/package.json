@@ -25,7 +25,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@actions/core": "2.0.3",
+    "@actions/core": "3.0.1",
     "@heyo-sh/code-audit-core": "workspace:*",
     "@heyo-sh/code-audit-reporter-github": "workspace:*",
     "@heyo-sh/code-audit-runtime-pi": "workspace:*"
