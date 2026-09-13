@@ -22,7 +22,7 @@ import {
 const temporary: string[] = [];
 const inputs: Record<string, string> = {
   provider: "openai",
-  model: "",
+  model: "gpt-5.6-terra",
   "api-key": "provider-key",
   "github-token": "github-token",
   checks: "",
@@ -97,7 +97,7 @@ afterEach(async () => {
   );
   Object.assign(inputs, {
     provider: "openai",
-    model: "",
+    model: "gpt-5.6-terra",
     "api-key": "provider-key",
     "github-token": "github-token",
     checks: "",
@@ -208,6 +208,7 @@ describe("GitHub Action entry point", () => {
 
 test("builds the production service and pins Pi snapshots to the workspace", async () => {
   const config = parseAuditConfig({
+    model: "gpt-5.6-terra",
     "api-key": "provider-key",
     "github-token": "github-token",
   });

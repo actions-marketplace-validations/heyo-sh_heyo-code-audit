@@ -24,7 +24,11 @@ const pr: PullRequestContext = {
   title: "Add account lookup",
   body: "",
 };
-const config = parseAuditConfig({ "api-key": "key", "github-token": "token" });
+const config = parseAuditConfig({
+  model: "gpt-5.6-terra",
+  "api-key": "key",
+  "github-token": "token",
+});
 const candidate: Finding = {
   fingerprint: "candidate",
   check: "security",

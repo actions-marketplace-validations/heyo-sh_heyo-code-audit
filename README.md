@@ -48,28 +48,32 @@ Pi provider that authenticates with one API key. Providers that need ambient
 cloud credentials or OAuth are outside this action's authentication model.
 
 `checks` accepts a comma-separated subset of `security`, `regression`,
-`product-gap`, `functional`, and `nonfunctional`. Omit `checks` or pass an empty
-value to enable all five checks. Malformed provider and unknown check
+`functional`, and `nonfunctional`. Omit `checks` or pass an empty value to
+enable all four checks. Malformed provider and unknown check
 identifiers fail configuration validation before the audit starts. Pi rejects a
 provider that is not in its bundled catalog.
 
-| Input                                | Default                                                                   |
-| ------------------------------------ | ------------------------------------------------------------------------- |
-| `provider`                           | `openai`                                                                  |
-| `model`                              | First bundled Pi model for the provider (`Pi catalog default` in reports) |
-| `api-key`, `github-token`            | Required                                                                  |
-| `checks`                             | All five checks                                                           |
-| `verification`                       | `true`                                                                    |
-| `report`                             | `check-and-comment`                                                       |
-| `comment-on-clean`                   | `false`                                                                   |
-| `fail-on`                            | `high`                                                                    |
-| `paths`                              | Entire repository                                                         |
-| `incremental`                        | `true`                                                                    |
-| `max-pr-commits` / `max-new-commits` | `100` / `20`                                                              |
+| Input                                | Default                     |
+| ------------------------------------ | --------------------------- |
+| `provider`                           | `openai`                    |
+| `model`                              | Required; no model fallback |
+| `api-key`, `github-token`            | Required                    |
+| `checks`                             | All four checks             |
+| `verification`                       | `true`                      |
+| `report`                             | `check-and-comment`         |
+| `comment-on-clean`                   | `false`                     |
+| `fail-on`                            | `high`                      |
+| `paths`                              | Entire repository           |
+| `incremental`                        | `true`                      |
+| `max-pr-commits` / `max-new-commits` | `100` / `20`                |
 
 Use `unlimited` only for either commit limit when the associated repository
 policy permits it. `report: comment` and `report: none` intentionally produce
 no GitHub Check, so they do not retain incremental state.
+
+`model`, `api-key`, and `github-token` must all be non-empty for a normal audit
+run. Heyo never chooses a provider catalog model on your behalf; the configured
+model identifier is passed through to Pi and recorded verbatim in the report.
 
 ## Behavior and safety
 
@@ -139,3 +143,7 @@ stable major tag such as `v1`. Pre-releases do not move a stable major tag.
 Before enabling this workflow in GitHub, allow Actions to create pull requests
 in **Settings → Actions → General**. If tag protection is enabled, allow the
 release workflow to create immutable version tags and move the major tag.
+
+## License
+
+This repository is licensed under the [MIT License](LICENSE).

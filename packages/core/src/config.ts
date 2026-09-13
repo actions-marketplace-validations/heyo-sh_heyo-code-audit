@@ -25,7 +25,7 @@ export function parseAuditConfig(
   const provider = parseProvider(inputs.provider ?? "openai");
   const config: AuditConfig = {
     provider,
-    model: optionalModel(inputs.model),
+    model: requiredModel(inputs.model),
     apiKey: required(inputs["api-key"], "api-key"),
     githubToken: required(inputs["github-token"], "github-token"),
     checks: parseChecks(inputs.checks),
@@ -77,8 +77,8 @@ function parseProvider(value: string): ProviderId {
   );
 }
 
-function optionalModel(value: string | undefined): string {
-  const model = value?.trim() ?? "";
+function requiredModel(value: string | undefined): string {
+  const model = required(value, "model");
   if (model.length > 200)
     throw new ConfigError("Input 'model' must be at most 200 characters.");
   return model;
