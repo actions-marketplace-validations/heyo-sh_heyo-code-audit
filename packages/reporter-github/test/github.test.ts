@@ -273,6 +273,7 @@ describe("GitHub adapter", () => {
   test("publishes checks plus a single replaceable PR comment according to report settings", async () => {
     const fake = fakeClient();
     const config = parseAuditConfig({
+      model: "gpt-5.6-terra",
       "api-key": "provider",
       "github-token": "github",
       "comment-on-clean": "true",
@@ -323,6 +324,7 @@ describe("GitHub adapter", () => {
   test("keeps the GitHub Check summary within its output limit while preserving state", async () => {
     const fake = fakeClient();
     const config = parseAuditConfig({
+      model: "gpt-5.6-terra",
       "api-key": "provider",
       "github-token": "github",
       report: "check",
@@ -352,6 +354,7 @@ describe("GitHub adapter", () => {
   test("publishes the report when its optional incremental state is too large", async () => {
     const fake = fakeClient();
     const config = parseAuditConfig({
+      model: "gpt-5.6-terra",
       "api-key": "provider",
       "github-token": "github",
       report: "check",

@@ -29,7 +29,7 @@ export function createReport(input: {
     metadata: {
       runtime: "pi",
       provider: input.config.provider,
-      model: input.config.model || "Pi catalog default",
+      model: input.config.model,
       baseSha: input.pr.baseSha,
       headSha: input.pr.headSha,
       verification: input.config.verification,
@@ -55,7 +55,7 @@ export function neutralReport(input: {
     metadata: {
       runtime: "pi",
       provider: input.config.provider,
-      model: input.config.model || "Pi catalog default",
+      model: input.config.model,
       baseSha: input.pr.baseSha,
       headSha: input.pr.headSha,
       verification: input.config.verification,

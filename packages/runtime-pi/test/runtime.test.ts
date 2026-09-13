@@ -57,7 +57,7 @@ describe("Pi runtime helpers", () => {
       id: "gpt-5.6-terra",
       provider: "openai",
     });
-    expect(providerModel("google", "")).toMatchObject({ provider: "google" });
+    expect(() => providerModel("google", "")).toThrow("configured model");
     expect(() => providerModel("not-a-pi-provider", "model")).toThrow(
       "Pi does not support provider",
     );

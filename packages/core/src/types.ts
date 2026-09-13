@@ -1,7 +1,6 @@
 export const CHECK_IDS = [
   "security",
   "regression",
-  "product-gap",
   "functional",
   "nonfunctional",
 ] as const;

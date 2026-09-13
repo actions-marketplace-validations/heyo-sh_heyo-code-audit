@@ -100,11 +100,12 @@ export function providerModel(
   provider: RuntimeInput["provider"],
   id: string,
 ): Model<import("@mariozechner/pi-ai").Api> {
-  const template = getModels(provider as never)[0];
-  if (!template) throw new Error(`Pi does not support provider '${provider}'.`);
-  if (!id) return template;
+  if (!id.trim())
+    throw new Error("Pi audit runtime requires a configured model.");
   const known = getModel(provider as never, id as never);
   if (known) return known;
+  const template = getModels(provider as never)[0];
+  if (!template) throw new Error(`Pi does not support provider '${provider}'.`);
   return { ...template, id, name: id };
 }
 

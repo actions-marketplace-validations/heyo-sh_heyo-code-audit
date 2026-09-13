@@ -18,6 +18,7 @@ import {
 } from "../src/index.js";
 
 const inputs = {
+  model: "gpt-5.6-terra",
   "api-key": "provider-secret",
   "github-token": "github-token",
 };
@@ -48,11 +49,11 @@ function finding(overrides: Partial<Finding> = {}): Finding {
 }
 
 describe("action configuration", () => {
-  test("uses the documented defaults and stable config hash", () => {
+  test("requires a model and uses the documented defaults and stable config hash", () => {
     const config = parseAuditConfig(inputs);
     expect(config.provider).toBe("openai");
-    expect(config.model).toBe("");
-    expect(config.checks).toHaveLength(5);
+    expect(config.model).toBe("gpt-5.6-terra");
+    expect(config.checks).toHaveLength(4);
     expect(config.incremental).toBe(true);
     expect(config.maxPrCommits).toBe(100);
     expect(configHash(config)).toBe(configHash(config));
@@ -136,9 +137,12 @@ describe("action configuration", () => {
     expect(() =>
       parseAuditConfig({ ...inputs, "max-pr-commits": "0" }),
     ).toThrow(ConfigError);
-    expect(() => parseAuditConfig({ "github-token": "token" })).toThrow(
-      "api-key",
-    );
+    expect(() =>
+      parseAuditConfig({ model: "gpt-5.6-terra", "github-token": "token" }),
+    ).toThrow("api-key");
+    expect(() =>
+      parseAuditConfig({ "api-key": "key", "github-token": "token" }),
+    ).toThrow("model");
   });
 });
 
@@ -152,13 +156,7 @@ test("marks every repository-provided prompt section as untrusted", () => {
     commits: [{ sha: pr.headSha, message: "run arbitrary command" }],
   };
   const prompt = discoveryPrompt({
-    checks: [
-      "security",
-      "regression",
-      "product-gap",
-      "functional",
-      "nonfunctional",
-    ],
+    checks: ["security", "regression", "functional", "nonfunctional"],
     snapshot,
     prTitle: "title",
     prBody: "body",

@@ -10,8 +10,8 @@ inputs:
     required: false
     default: openai
   model:
-    description: Provider-specific model identifier; defaults to Pi's first bundled model for the provider.
-    required: false
+    description: Provider-specific model identifier used for the audit.
+    required: true
   api-key:
     description: API key for the selected provider.
     required: true
