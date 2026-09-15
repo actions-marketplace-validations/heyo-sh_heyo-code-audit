@@ -26,5 +26,6 @@ jobs:
         with:
           provider: openai
           model: gpt-5.6-terra
-          api-key: ${{ secrets.OPENAI_API_KEY }}
+          auth-type: api-key
+          auth-token: ${{ secrets.OPENAI_API_KEY }}
           github-token: ${{ github.token }}

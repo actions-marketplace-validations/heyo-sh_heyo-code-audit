@@ -6,15 +6,24 @@ branding:
   color: purple
 inputs:
   provider:
-    description: Pi provider identifier for a provider that accepts one API key.
+    description: Pi provider identifier used for the audit.
     required: false
     default: openai
   model:
     description: Provider-specific model identifier used for the audit.
     required: true
-  api-key:
-    description: API key for the selected provider.
+  auth-type:
+    description: "Authentication mode: api-key, oauth, aws, or bedrock-bearer."
     required: true
+  auth-token:
+    description: API key, OAuth access token, or Bedrock bearer token for the selected auth type.
+    required: false
+  aws-region:
+    description: Optional AWS region for amazon-bedrock authentication.
+    required: false
+  aws-profile:
+    description: Optional AWS shared-config profile for amazon-bedrock authentication.
+    required: false
   github-token:
     description: GitHub token used only to read PR metadata and publish reports.
     required: true
@@ -54,7 +63,7 @@ inputs:
     default: "20"
 outputs:
   outcome:
-    description: published, skipped, stale, or skipped-fork-without-api-key.
+    description: published, skipped, stale, or skipped-fork-without-auth-token.
   conclusion:
     description: GitHub Check conclusion when a report was produced.
 runs:

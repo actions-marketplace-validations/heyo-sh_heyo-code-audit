@@ -63,20 +63,24 @@ export async function runAction(
   const [owner, repo] = (environment.GITHUB_REPOSITORY ?? "").split("/", 2);
   if (!owner || !repo || !event.number)
     throw new Error("GitHub pull request context is incomplete.");
-  const apiKey = dependencies.core.getInput("api-key");
+  const authType = dependencies.core.getInput("auth-type");
+  const authToken = dependencies.core.getInput("auth-token");
   const isFork =
     event.pull_request?.head?.repo?.full_name !== `${owner}/${repo}`;
-  if (isFork && !apiKey.trim()) {
+  if (isFork && authType !== "aws" && !authToken.trim()) {
     dependencies.core.warning(
-      "Heyo Code Audit skipped this fork pull request because no provider API key is available.",
+      "Heyo Code Audit skipped this fork pull request because no provider authentication token is available.",
     );
-    dependencies.core.setOutput("outcome", "skipped-fork-without-api-key");
+    dependencies.core.setOutput("outcome", "skipped-fork-without-auth-token");
     return;
   }
   const config = parseAuditConfig({
     provider: dependencies.core.getInput("provider"),
     model: dependencies.core.getInput("model"),
-    "api-key": apiKey,
+    "auth-type": authType,
+    "auth-token": authToken,
+    "aws-region": dependencies.core.getInput("aws-region"),
+    "aws-profile": dependencies.core.getInput("aws-profile"),
     "github-token": dependencies.core.getInput("github-token"),
     checks: dependencies.core.getInput("checks"),
     verification: dependencies.core.getInput("verification"),

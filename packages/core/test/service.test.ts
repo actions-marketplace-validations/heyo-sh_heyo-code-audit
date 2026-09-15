@@ -26,7 +26,8 @@ const pr: PullRequestContext = {
 };
 const config = parseAuditConfig({
   model: "gpt-5.6-terra",
-  "api-key": "key",
+  "auth-type": "api-key",
+  "auth-token": "key",
   "github-token": "token",
 });
 const candidate: Finding = {

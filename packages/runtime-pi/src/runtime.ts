@@ -1,5 +1,5 @@
-import { Agent } from "@mariozechner/pi-agent-core";
-import { getModel, getModels, type Model } from "@mariozechner/pi-ai";
+import { Agent, type AgentOptions } from "@mariozechner/pi-agent-core";
+import { getModel, getModels, stream, type Model } from "@mariozechner/pi-ai";
 import {
   parseDiscovery,
   parseVerification,
@@ -44,8 +44,7 @@ export class PiAuditRuntime implements AuditRuntime {
         thinkingLevel: "high",
         tools: createRestrictedTools(input, snapshot),
       },
-      getApiKey: (provider) =>
-        provider === input.provider ? input.apiKey : undefined,
+      ...piAgentAuthOptions(input),
       toolExecution: "sequential",
       maxRetryDelayMs: 5_000,
     });
@@ -85,6 +84,38 @@ export class PiAuditRuntime implements AuditRuntime {
     if (!text || Buffer.byteLength(text) > input.limits.maxOutputBytes)
       throw new Error("Pi audit response exceeded the output limit.");
     return JSON.parse(extractJson(text));
+  }
+}
+
+function piAgentAuthOptions(
+  input: RuntimeInput,
+): Pick<AgentOptions, "getApiKey" | "streamFn"> {
+  const auth = input.auth;
+  switch (auth.type) {
+    case "api-key":
+    case "oauth":
+      return {
+        getApiKey: (provider) =>
+          provider === input.provider ? auth.token : undefined,
+      };
+    case "aws":
+      return {
+        streamFn: (model, context, options) =>
+          stream(model, context, {
+            ...options,
+            ...(auth.region ? { region: auth.region } : {}),
+            ...(auth.profile ? { profile: auth.profile } : {}),
+          }),
+      };
+    case "bedrock-bearer":
+      return {
+        streamFn: (model, context, options) =>
+          stream(model, context, {
+            ...options,
+            bearerToken: auth.token,
+            ...(auth.region ? { region: auth.region } : {}),
+          }),
+      };
   }
 }
 

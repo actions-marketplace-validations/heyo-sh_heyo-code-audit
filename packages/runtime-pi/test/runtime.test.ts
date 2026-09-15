@@ -24,7 +24,7 @@ const input: RuntimeInput = {
   checks: ["security"],
   provider: "openai",
   model: "gpt-5.6-terra",
-  apiKey: "key",
+  auth: { type: "api-key", token: "key" },
   internalPrompt: "fixed",
   permissions: "read-only",
   limits: {

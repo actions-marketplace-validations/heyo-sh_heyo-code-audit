@@ -13,6 +13,11 @@ export type Severity = (typeof SEVERITIES)[number];
 export type Confidence = (typeof CONFIDENCES)[number];
 export type Conclusion = (typeof CONCLUSIONS)[number];
 export type ProviderId = string;
+export type AuditAuth =
+  | { type: "api-key"; token: string }
+  | { type: "oauth"; token: string }
+  | { type: "aws"; region?: string; profile?: string }
+  | { type: "bedrock-bearer"; token: string; region?: string };
 export type AuditScope = "full" | "incremental";
 export type ReportMode = "check" | "comment" | "check-and-comment" | "none";
 export type CommitLimit = number | "unlimited";
@@ -58,7 +63,7 @@ export interface AuditReport {
 export interface AuditConfig {
   provider: ProviderId;
   model: string;
-  apiKey: string;
+  auth: AuditAuth;
   githubToken: string;
   checks: CheckId[];
   verification: boolean;
@@ -114,7 +119,7 @@ export interface RuntimeInput {
   checks: CheckId[];
   provider: ProviderId;
   model: string;
-  apiKey: string;
+  auth: AuditAuth;
   internalPrompt: string;
   permissions: "read-only";
   limits: RuntimeLimits;
