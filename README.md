@@ -36,16 +36,58 @@ jobs:
         with:
           provider: openai
           model: gpt-5.6-terra
-          api-key: ${{ secrets.OPENAI_API_KEY }}
+          auth-type: api-key
+          auth-token: ${{ secrets.OPENAI_API_KEY }}
           github-token: ${{ github.token }}
 ```
 
 ## Providers and checks
 
-Heyo accepts every provider bundled with the installed Pi version; there is no
-Heyo-specific provider allowlist. The action forwards `api-key` only, so use a
-Pi provider that authenticates with one API key. Providers that need ambient
-cloud credentials or OAuth are outside this action's authentication model.
+Heyo accepts every provider and model bundled with the installed Pi version;
+there is no Heyo-specific provider allowlist. Authentication is explicit and
+validated against the selected provider.
+
+| Provider                             | `auth-type`      | Required inputs                      |
+| ------------------------------------ | ---------------- | ------------------------------------ |
+| API-key Pi provider                  | `api-key`        | `auth-token`                         |
+| GitHub Copilot or OpenAI Codex       | `oauth`          | `auth-token`                         |
+| Amazon Bedrock with AWS credentials  | `aws`            | Optional `aws-region`, `aws-profile` |
+| Amazon Bedrock bearer authentication | `bedrock-bearer` | `auth-token`, optional `aws-region`  |
+
+### API key
+
+Use the default API-key mode for providers that Pi authenticates with one
+provider token:
+
+```yaml
+with:
+  provider: openai
+  model: gpt-5.6-terra
+  auth-type: api-key
+  auth-token: ${{ secrets.OPENAI_API_KEY }}
+```
+
+### OAuth
+
+GitHub Copilot and OpenAI Codex require `auth-type: oauth`. The workflow must
+supply an access token that remains valid for the whole audit. The Action cannot
+run a provider OAuth flow or refresh tokens.
+
+### Amazon Bedrock
+
+Configure AWS credentials on the runner before this Action, then select the AWS
+credential chain:
+
+```yaml
+with:
+  provider: amazon-bedrock
+  model: amazon.nova-lite-v1:0
+  auth-type: aws
+  aws-region: eu-central-1
+```
+
+Use `auth-type: bedrock-bearer` with `auth-token` when you use Amazon Bedrock's
+bearer authentication instead. Bedrock runs in the Node.js Action runtime.
 
 `checks` accepts a comma-separated subset of `security`, `regression`,
 `functional`, and `nonfunctional`. Omit `checks` or pass an empty value to
@@ -57,7 +99,9 @@ provider that is not in its bundled catalog.
 | ------------------------------------ | --------------------------- |
 | `provider`                           | `openai`                    |
 | `model`                              | Required; no model fallback |
-| `api-key`, `github-token`            | Required                    |
+| `auth-type`, `github-token`          | Required                    |
+| `auth-token`                         | Required except `aws`       |
+| `aws-region` / `aws-profile`         | Optional; Bedrock only      |
 | `checks`                             | All four checks             |
 | `verification`                       | `true`                      |
 | `report`                             | `check-and-comment`         |
@@ -71,9 +115,10 @@ Use `unlimited` only for either commit limit when the associated repository
 policy permits it. `report: comment` and `report: none` intentionally produce
 no GitHub Check, so they do not retain incremental state.
 
-`model`, `api-key`, and `github-token` must all be non-empty for a normal audit
-run. Heyo never chooses a provider catalog model on your behalf; the configured
-model identifier is passed through to Pi and recorded verbatim in the report.
+`model`, `auth-type`, and `github-token` must all be non-empty for a normal
+audit run. `auth-token` is required for every mode except `aws`. Heyo never
+chooses a provider catalog model on your behalf; the configured model identifier
+is passed through to Pi and recorded verbatim in the report.
 
 ## Behavior and safety
 
@@ -87,14 +132,15 @@ command. It cannot load `AGENTS.md`, `SYSTEM.md`, Pi extensions, repository
 skills, or an unrestricted shell. Repository content is handled as untrusted
 data; sensitive-looking values are redacted from model-visible tool output and
 published reports. Path checks are applied again after symlinks resolve, so a
-permitted-looking link cannot expose a blocked file. API keys are supplied only
-through Pi's provider key resolver.
+permitted-looking link cannot expose a blocked file. Authentication is supplied
+only to Pi's provider resolver or, for Bedrock, its Node.js stream options.
 
 The collected PR diff is bounded to 160 kB. An oversized diff is truncated and
 marked as such instead of causing the audit to fail before it reaches Pi.
 
-The action uses `pull_request`, never `pull_request_target`. A fork with no API
-key is skipped without attempting an audit.
+The action uses `pull_request`, never `pull_request_target`. A fork without the
+needed `auth-token` is skipped without attempting an audit. An AWS-authenticated
+fork can run only when the runner already has the intended AWS credential chain.
 
 On later pushes Heyo finds the latest compatible machine state embedded in its
 completed Check. It audits only the delta, then re-verifies all active prior

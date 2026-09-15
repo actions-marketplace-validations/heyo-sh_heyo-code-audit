@@ -19,7 +19,8 @@ import {
 
 const inputs = {
   model: "gpt-5.6-terra",
-  "api-key": "provider-secret",
+  "auth-type": "api-key",
+  "auth-token": "provider-secret",
   "github-token": "github-token",
 };
 
@@ -59,6 +60,9 @@ describe("action configuration", () => {
     expect(configHash(config)).toBe(configHash(config));
     expect(configHash(config)).not.toBe(
       configHash({ ...config, paths: ["src/**"] }),
+    );
+    expect(configHash(config)).toBe(
+      configHash({ ...config, auth: { type: "api-key", token: "other" } }),
     );
   });
 
@@ -138,11 +142,64 @@ describe("action configuration", () => {
       parseAuditConfig({ ...inputs, "max-pr-commits": "0" }),
     ).toThrow(ConfigError);
     expect(() =>
-      parseAuditConfig({ model: "gpt-5.6-terra", "github-token": "token" }),
-    ).toThrow("api-key");
+      parseAuditConfig({ ...inputs, "auth-type": "session-token" }),
+    ).toThrow("api-key, oauth, aws, or bedrock-bearer");
     expect(() =>
-      parseAuditConfig({ "api-key": "key", "github-token": "token" }),
+      parseAuditConfig({ model: "gpt-5.6-terra", "github-token": "token" }),
+    ).toThrow("auth-type");
+    expect(() =>
+      parseAuditConfig({
+        "auth-type": "api-key",
+        "auth-token": "key",
+        "github-token": "token",
+      }),
     ).toThrow("model");
+  });
+
+  test("requires a provider-compatible explicit authentication mode", () => {
+    expect(
+      parseAuditConfig({
+        ...inputs,
+        provider: "github-copilot",
+        "auth-type": "oauth",
+        "auth-token": "short-lived-token",
+      }).auth,
+    ).toEqual({ type: "oauth", token: "short-lived-token" });
+    const awsConfig = parseAuditConfig({
+      ...inputs,
+      provider: "amazon-bedrock",
+      "auth-type": "aws",
+      "auth-token": "",
+      "aws-region": "eu-central-1",
+      "aws-profile": "production",
+    });
+    expect(awsConfig.auth).toEqual({
+      type: "aws",
+      region: "eu-central-1",
+      profile: "production",
+    });
+    expect(configHash(awsConfig)).not.toBe(
+      configHash({ ...awsConfig, auth: { type: "aws" } }),
+    );
+    expect(
+      parseAuditConfig({
+        ...inputs,
+        provider: "amazon-bedrock",
+        "auth-type": "bedrock-bearer",
+        "auth-token": "bedrock-token",
+        "aws-region": "eu-central-1",
+      }).auth,
+    ).toEqual({
+      type: "bedrock-bearer",
+      token: "bedrock-token",
+      region: "eu-central-1",
+    });
+    expect(() =>
+      parseAuditConfig({ ...inputs, provider: "openai-codex" }),
+    ).toThrow("oauth");
+    expect(() =>
+      parseAuditConfig({ ...inputs, provider: "amazon-bedrock" }),
+    ).toThrow("'aws' or 'bedrock-bearer'");
   });
 });
 

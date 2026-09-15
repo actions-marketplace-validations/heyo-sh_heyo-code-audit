@@ -23,7 +23,10 @@ const temporary: string[] = [];
 const inputs: Record<string, string> = {
   provider: "openai",
   model: "gpt-5.6-terra",
-  "api-key": "provider-key",
+  "auth-type": "api-key",
+  "auth-token": "provider-key",
+  "aws-region": "",
+  "aws-profile": "",
   "github-token": "github-token",
   checks: "",
   verification: "true",
@@ -98,7 +101,10 @@ afterEach(async () => {
   Object.assign(inputs, {
     provider: "openai",
     model: "gpt-5.6-terra",
-    "api-key": "provider-key",
+    "auth-type": "api-key",
+    "auth-token": "provider-key",
+    "aws-region": "",
+    "aws-profile": "",
     "github-token": "github-token",
     checks: "",
     verification: "true",
@@ -146,15 +152,15 @@ describe("GitHub Action entry point", () => {
     );
   });
 
-  test("skips forks without a provider key before creating an audit", async () => {
-    inputs["api-key"] = "";
+  test("skips forks without a provider auth token before creating an audit", async () => {
+    inputs["auth-token"] = "";
     event = {
       number: 7,
       pull_request: { head: { repo: { full_name: "contributor/audit" } } },
     };
     await runAction(environment, dependencies);
     expect(messages.outputs.get("outcome")).toBe(
-      "skipped-fork-without-api-key",
+      "skipped-fork-without-auth-token",
     );
     expect(messages.warnings[0]).toContain("fork pull request");
     expect(createdContext).toBeUndefined();
@@ -162,6 +168,22 @@ describe("GitHub Action entry point", () => {
     event = { number: 7, pull_request: { head: { repo: null } } };
     await runAction(environment, dependencies);
     expect(messages.warnings.at(-1)).toContain("fork pull request");
+  });
+
+  test("allows a fork to use its configured AWS credential chain", async () => {
+    inputs["auth-type"] = "aws";
+    inputs["auth-token"] = "";
+    inputs.provider = "amazon-bedrock";
+    inputs.model = "amazon.nova-lite-v1:0";
+    event = {
+      number: 7,
+      pull_request: { head: { repo: { full_name: "contributor/audit" } } },
+    };
+
+    await runAction(environment, dependencies);
+
+    expect(messages.outputs.get("outcome")).toBe("published");
+    expect(createdContext).toMatchObject({ owner: "heyo", repo: "audit" });
   });
 
   test("maps normal published, skipped, and stale outcomes to action output", async () => {
@@ -209,7 +231,8 @@ describe("GitHub Action entry point", () => {
 test("builds the production service and pins Pi snapshots to the workspace", async () => {
   const config = parseAuditConfig({
     model: "gpt-5.6-terra",
-    "api-key": "provider-key",
+    "auth-type": "api-key",
+    "auth-token": "provider-key",
     "github-token": "github-token",
   });
   expect(

@@ -44,7 +44,7 @@ async function fixture() {
     checks: ["security"],
     provider: "openai",
     model: "gpt-5.6-terra",
-    apiKey: "secret",
+    auth: { type: "api-key", token: "secret" },
     internalPrompt: "fixed",
     permissions: "read-only",
     limits: {

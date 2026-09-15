@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   CHECK_IDS,
+  type AuditAuth,
   type AuditConfig,
   type CheckId,
   type CommitLimit,
@@ -16,6 +17,17 @@ const REPORT_MODES = new Set<ReportMode>([
   "none",
 ]);
 const SEVERITY_SET = new Set<Severity>(["low", "medium", "high", "critical"]);
+const API_KEY_AUTH_TYPES = ["api-key"] as const;
+const OAUTH_AUTH_TYPES = ["oauth"] as const;
+const BEDROCK_AUTH_TYPES = ["aws", "bedrock-bearer"] as const;
+const OAUTH_PROVIDERS = new Set(["github-copilot", "openai-codex"]);
+const BEDROCK_PROVIDER = "amazon-bedrock";
+const AUTH_TYPES = new Set<AuditAuth["type"]>([
+  "api-key",
+  "oauth",
+  "aws",
+  "bedrock-bearer",
+]);
 
 export class ConfigError extends Error {}
 
@@ -26,7 +38,7 @@ export function parseAuditConfig(
   const config: AuditConfig = {
     provider,
     model: requiredModel(inputs.model),
-    apiKey: required(inputs["api-key"], "api-key"),
+    auth: parseAuth(provider, inputs),
     githubToken: required(inputs["github-token"], "github-token"),
     checks: parseChecks(inputs.checks),
     verification: parseBoolean(inputs.verification, true, "verification"),
@@ -49,6 +61,7 @@ export function configHash(config: AuditConfig): string {
   const visible = {
     provider: config.provider,
     model: config.model,
+    auth: visibleAuth(config.auth),
     checks: config.checks,
     verification: config.verification,
     report: config.report,
@@ -60,6 +73,81 @@ export function configHash(config: AuditConfig): string {
     maxNewCommits: config.maxNewCommits,
   };
   return createHash("sha256").update(JSON.stringify(visible)).digest("hex");
+}
+
+function parseAuth(
+  provider: ProviderId,
+  inputs: Record<string, string | undefined>,
+): AuditAuth {
+  const type = required(inputs["auth-type"], "auth-type") as AuditAuth["type"];
+  if (!AUTH_TYPES.has(type))
+    throw new ConfigError(
+      "Input 'auth-type' must be api-key, oauth, aws, or bedrock-bearer.",
+    );
+
+  const allowedTypes = authTypesForProvider(provider);
+  if (!allowedTypes.includes(type)) throw authMismatch(provider, allowedTypes);
+
+  switch (type) {
+    case "aws":
+      return optionalAwsAuth(inputs["aws-region"], inputs["aws-profile"]);
+    case "api-key":
+    case "oauth":
+      return { type, token: required(inputs["auth-token"], "auth-token") };
+    case "bedrock-bearer":
+      return {
+        type,
+        token: required(inputs["auth-token"], "auth-token"),
+        ...optionalRegion(inputs["aws-region"]),
+      };
+  }
+}
+
+function authTypesForProvider(
+  provider: ProviderId,
+): readonly AuditAuth["type"][] {
+  if (provider === BEDROCK_PROVIDER) return BEDROCK_AUTH_TYPES;
+  if (OAUTH_PROVIDERS.has(provider)) return OAUTH_AUTH_TYPES;
+  return API_KEY_AUTH_TYPES;
+}
+
+function optionalAwsAuth(
+  region: string | undefined,
+  profile: string | undefined,
+): Extract<AuditAuth, { type: "aws" }> {
+  return {
+    type: "aws",
+    ...optionalRegion(region),
+    ...(profile?.trim() ? { profile: profile.trim() } : {}),
+  };
+}
+
+function optionalRegion(region: string | undefined): { region?: string } {
+  return region?.trim() ? { region: region.trim() } : {};
+}
+
+function authMismatch(
+  provider: ProviderId,
+  expected: readonly AuditAuth["type"][],
+): ConfigError {
+  return new ConfigError(
+    `Pi provider '${provider}' requires auth-type ${expected.map((type) => `'${type}'`).join(" or ")}.`,
+  );
+}
+
+function visibleAuth(auth: AuditAuth): {
+  type: string;
+  region?: string;
+  profile?: string;
+} {
+  switch (auth.type) {
+    case "aws":
+      return auth;
+    case "api-key":
+    case "oauth":
+    case "bedrock-bearer":
+      return { type: auth.type };
+  }
 }
 
 function required(value: string | undefined, name: string): string {

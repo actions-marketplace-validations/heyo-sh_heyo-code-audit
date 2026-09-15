@@ -212,7 +212,7 @@ export class AuditService {
       checks: config.checks,
       provider: config.provider,
       model: config.model,
-      apiKey: config.apiKey,
+      auth: config.auth,
       internalPrompt,
       permissions: "read-only",
       limits: DEFAULT_LIMITS,

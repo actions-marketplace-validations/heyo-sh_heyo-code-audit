@@ -274,7 +274,8 @@ describe("GitHub adapter", () => {
     const fake = fakeClient();
     const config = parseAuditConfig({
       model: "gpt-5.6-terra",
-      "api-key": "provider",
+      "auth-type": "api-key",
+      "auth-token": "provider",
       "github-token": "github",
       "comment-on-clean": "true",
     });
@@ -325,7 +326,8 @@ describe("GitHub adapter", () => {
     const fake = fakeClient();
     const config = parseAuditConfig({
       model: "gpt-5.6-terra",
-      "api-key": "provider",
+      "auth-type": "api-key",
+      "auth-token": "provider",
       "github-token": "github",
       report: "check",
     });
@@ -355,7 +357,8 @@ describe("GitHub adapter", () => {
     const fake = fakeClient();
     const config = parseAuditConfig({
       model: "gpt-5.6-terra",
-      "api-key": "provider",
+      "auth-type": "api-key",
+      "auth-token": "provider",
       "github-token": "github",
       report: "check",
     });
