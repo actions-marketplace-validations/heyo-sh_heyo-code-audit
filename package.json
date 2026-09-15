@@ -13,6 +13,9 @@
     "test:coverage": "bun test --coverage --coverage-reporter=text && bun test --coverage --coverage-reporter=lcov && node scripts/check-line-coverage.mjs",
     "lint": "prettier --check .",
     "format": "prettier --write .",
+    "quality": "bun run lint && bun run typecheck && bun run test:coverage && bun run build && bun run verify:action-bundle",
+    "verify:action-bundle": "git ls-files --error-unmatch dist/action.js && git diff --exit-code -- dist/action.js",
+    "prepare": "husky",
     "changeset": "changeset",
     "changeset:status": "changeset status",
     "version-packages": "changeset version",
@@ -23,6 +26,7 @@
     "@opentelemetry/api": "1.9.1",
     "@types/bun": "1.4.2",
     "@types/node": "26.5.1",
+    "husky": "9.1.7",
     "prettier": "3.9.6",
     "typescript": "7.0.2"
   }
