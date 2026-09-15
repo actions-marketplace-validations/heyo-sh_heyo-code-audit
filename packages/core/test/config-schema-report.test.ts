@@ -142,6 +142,9 @@ describe("action configuration", () => {
       parseAuditConfig({ ...inputs, "max-pr-commits": "0" }),
     ).toThrow(ConfigError);
     expect(() =>
+      parseAuditConfig({ ...inputs, "auth-type": "session-token" }),
+    ).toThrow("api-key, oauth, aws, or bedrock-bearer");
+    expect(() =>
       parseAuditConfig({ model: "gpt-5.6-terra", "github-token": "token" }),
     ).toThrow("auth-type");
     expect(() =>
@@ -162,20 +165,22 @@ describe("action configuration", () => {
         "auth-token": "short-lived-token",
       }).auth,
     ).toEqual({ type: "oauth", token: "short-lived-token" });
-    expect(
-      parseAuditConfig({
-        ...inputs,
-        provider: "amazon-bedrock",
-        "auth-type": "aws",
-        "auth-token": "",
-        "aws-region": "eu-central-1",
-        "aws-profile": "production",
-      }).auth,
-    ).toEqual({
+    const awsConfig = parseAuditConfig({
+      ...inputs,
+      provider: "amazon-bedrock",
+      "auth-type": "aws",
+      "auth-token": "",
+      "aws-region": "eu-central-1",
+      "aws-profile": "production",
+    });
+    expect(awsConfig.auth).toEqual({
       type: "aws",
       region: "eu-central-1",
       profile: "production",
     });
+    expect(configHash(awsConfig)).not.toBe(
+      configHash({ ...awsConfig, auth: { type: "aws" } }),
+    );
     expect(
       parseAuditConfig({
         ...inputs,
