@@ -1,5 +1,11 @@
 # @heyo-sh/heyo-code-audit
 
+## 1.1.1
+
+### Patch Changes
+
+- 0c70c22: Publish the Action's GitHub Marketplace-ready metadata and documentation.
+
 ## 1.1.0
 
 ### Minor Changes
