@@ -86,4 +86,5 @@ jobs:
       - name: Tag the released action
         env:
           GH_TOKEN: ${{ github.token }}
+          HEYO_RELEASE_DRAFT: ${{ vars.HEYO_RELEASE_DRAFT }}
         run: bun run release:action

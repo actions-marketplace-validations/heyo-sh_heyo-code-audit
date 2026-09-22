@@ -33,10 +33,11 @@ test("release automation creates immutable and major tags idempotently", async (
   const repository = join(root, "repository");
   const remote = join(root, "remote.git");
   const bin = join(root, "bin");
-  const releaseMarker = join(root, "release-created");
+  const releaseMarker = join(root, "releases");
   await Promise.all([
     mkdir(join(repository, "packages", "cli"), { recursive: true }),
     mkdir(bin),
+    mkdir(releaseMarker),
   ]);
   await writeFile(
     join(repository, "packages", "cli", "package.json"),
@@ -46,11 +47,11 @@ test("release automation creates immutable and major tags idempotently", async (
     join(bin, "gh"),
     `#!/bin/sh
 if [ "$1" = "release" ] && [ "$2" = "view" ]; then
-  test -f "$HEYO_RELEASE_MARKER"
+  test -f "$HEYO_RELEASE_MARKER/$3"
   exit $?
 fi
 if [ "$1" = "release" ] && [ "$2" = "create" ]; then
-  : > "$HEYO_RELEASE_MARKER"
+  printf '%s\\n' "$@" > "$HEYO_RELEASE_MARKER/$3"
   exit 0
 fi
 exit 1
@@ -91,7 +92,9 @@ exit 1
     await exec("git", ["rev-list", "-n", "1", "v1"], { cwd: repository })
   ).stdout.trim();
   expect(versionCommit).toBe(majorCommit);
-  expect(await readFile(releaseMarker, "utf8")).toBe("");
+  expect(await readFile(join(releaseMarker, "v1.2.3"), "utf8")).not.toContain(
+    "--draft",
+  );
   expect(
     (
       await exec("git", ["ls-remote", "--tags", "origin", "v1*"], {
@@ -99,4 +102,20 @@ exit 1
       })
     ).stdout,
   ).toContain("refs/tags/v1.2.3");
+
+  await writeFile(
+    join(repository, "packages", "cli", "package.json"),
+    JSON.stringify({ name: "@heyo-sh/heyo-code-audit", version: "1.2.4" }),
+  );
+  await exec("git", ["add", "."], { cwd: repository });
+  await exec("git", ["commit", "--quiet", "-m", "prepare draft release"], {
+    cwd: repository,
+  });
+  await exec("git", ["push", "--quiet"], { cwd: repository });
+  await exec("node", [releaseScript], {
+    env: { ...environment, HEYO_RELEASE_DRAFT: "true" },
+  });
+  expect(await readFile(join(releaseMarker, "v1.2.4"), "utf8")).toContain(
+    "--draft",
+  );
 });

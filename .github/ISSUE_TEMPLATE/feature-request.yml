@@ -1,0 +1,36 @@
+name: Feature request
+description: Suggest an improvement to Heyo Code Audit.
+title: "feature: "
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Start with the problem. A proposed workflow configuration or API is welcome, but not required.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Who has this problem and what are they unable to do with the Action today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Include a sanitized workflow example or user flow when helpful. Do not include tokens or private repository data.
+      render: yaml
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Include existing workarounds and why they are insufficient.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and discussions for this idea.
+          required: true
+        - label: I am willing to help test a proposed implementation.
+          required: false

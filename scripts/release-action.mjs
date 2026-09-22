@@ -21,6 +21,7 @@ const tag = `v${version}`;
 const stableMajor = /^\d+\.\d+\.\d+$/.test(version)
   ? `v${version.split(".")[0]}`
   : undefined;
+const draftRelease = process.env.HEYO_RELEASE_DRAFT?.trim() === "true";
 
 await configureGitIdentity();
 if (!(await tagExists(tag))) {
@@ -43,13 +44,15 @@ if (stableMajor && !(await tagPointsTo(stableMajor, releaseCommit))) {
 }
 
 if (!(await releaseExists(tag))) {
-  await command("gh", [
+  const releaseArguments = [
     "release",
     "create",
     tag,
     "--generate-notes",
     "--verify-tag",
-  ]);
+  ];
+  if (draftRelease) releaseArguments.push("--draft");
+  await command("gh", releaseArguments);
 }
 
 async function configureGitIdentity() {
