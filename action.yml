@@ -1,5 +1,5 @@
 name: Heyo Code Audit
-description: Provider-agnostic, verified AI code auditing for pull requests.
+description: Verified AI code reviews for GitHub pull requests, with independent finding verification.
 author: Heyo
 branding:
   icon: shield

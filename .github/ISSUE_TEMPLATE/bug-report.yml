@@ -1,0 +1,63 @@
+name: Bug report
+description: Report a reproducible problem in Heyo Code Audit.
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. A minimal pull request or repository reproduction helps us investigate quickly. Never include secrets.
+  - type: input
+    id: version
+    attributes:
+      label: Action version
+      description: Include the exact Action reference, such as `heyo-sh/heyo-code-audit@v1` or a full commit SHA.
+      placeholder: heyo-sh/heyo-code-audit@v1
+    validations:
+      required: true
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Sanitized workflow configuration
+      description: Include the event, permissions, and non-sensitive `with` inputs. Replace all tokens, keys, repository URLs, and private paths.
+      render: yaml
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Link a public reproduction or provide the smallest safe set of steps. Do not include private source code or diffs.
+      placeholder: |
+        1. Open a pull request that …
+        2. Run the workflow …
+        3. Observe …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs or screenshots
+      description: Remove API keys, OAuth tokens, AWS credentials, GitHub tokens, private URLs, diffs, and personal data before posting.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: I removed secrets and private repository data from this report.
+          required: true
