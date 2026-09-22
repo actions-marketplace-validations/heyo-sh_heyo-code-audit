@@ -15,7 +15,7 @@
     },
     "packages/cli": {
       "name": "@heyo-sh/heyo-code-audit",
-      "version": "3.0.0",
+      "version": "1.0.0",
       "bin": {
         "heyo-code-audit": "./dist/index.js",
       },

@@ -30,6 +30,8 @@ export interface Finding {
   title: string;
   description: string;
   evidence: string;
+  /** Exact replacement for the selected diff line, when a safe fix exists. */
+  suggestion?: string;
   file?: string;
   line?: number;
 }
@@ -159,6 +161,8 @@ export interface AuditPublisher {
     pr: PullRequestContext;
     report: AuditReport;
     state?: AuditState;
+    /** The audited diff lets reporters attach findings to changed PR lines. */
+    snapshot?: Pick<RepositorySnapshot, "diff">;
   }): Promise<void>;
 }
 

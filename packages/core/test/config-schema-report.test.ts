@@ -220,6 +220,7 @@ test("marks every repository-provided prompt section as untrusted", () => {
     scope: "full",
   });
   expect(prompt).toContain("<untrusted-diff>");
+  expect(prompt).toContain("optional suggestion field");
   expect(
     verificationPrompt({
       checks: ["security"],
@@ -288,6 +289,16 @@ describe("bundled response schema", () => {
         ],
       }).findings[0]?.evidence,
     ).toContain("[REDACTED_SECRET]");
+    expect(
+      parseDiscovery({
+        findings: [finding({ suggestion: "return forbidden();" })],
+      }).findings[0]?.suggestion,
+    ).toBe("return forbidden();");
+    expect(() =>
+      parseDiscovery({
+        findings: [finding({ suggestion: "```suggestion" })],
+      }),
+    ).toThrow(SchemaError);
     expect(() => parseVerification({ verified: true })).toThrow(SchemaError);
     expect(() =>
       parseDiscovery({ findings: Array.from({ length: 21 }, () => finding()) }),

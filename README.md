@@ -2,8 +2,12 @@
 
 Provider-agnostic, verified AI code auditing for GitHub pull requests. Heyo reads
 the PR diff and repository context, discovers candidate issues, verifies each
-candidate in a separate Pi session, and publishes a GitHub Check and/or an
-updatable PR comment according to the selected reporting mode.
+candidate in a separate Pi session, and publishes a GitHub Check and/or a PR
+review according to the selected reporting mode. Findings on changed lines are
+attached to the GitHub Check as annotations and, when reviews are enabled, are
+also published as inline PR review comments. When the verifier can prove an
+exact replacement for the selected diff line, the review comment includes
+GitHub's **Apply suggestion** control.
 
 ## Install
 
@@ -40,6 +44,10 @@ jobs:
           auth-token: ${{ secrets.OPENAI_API_KEY }}
           github-token: ${{ github.token }}
 ```
+
+Reports use the identity behind `github-token`. With the default
+`${{ github.token }}`, the Check and review comments are authored by
+`github-actions[bot]`.
 
 ## Providers and checks
 
@@ -153,7 +161,21 @@ publishes the report without that state; a later run uses an earlier compatible
 checkpoint or performs a full audit.
 
 Immediately before writing, Heyo re-reads the pull request head. A stale run
-publishes neither a Check, comment, nor state.
+publishes neither a Check, comment, nor state. In `check` and
+`check-and-comment` modes, verified findings whose `file` and `line` point to
+an added or modified PR line become annotations on the **Heyo Code Audit**
+Check. In `comment` and `check-and-comment` modes, those same findings are also
+published directly on the line as PR review comments. Heyo groups all newly
+published inline findings into one `COMMENTED` review, like GitHub Advanced
+Security; it does not create a standalone comment in the PR Conversation.
+Thus the default `check-and-comment` mode provides both the
+Advanced-Security-style Check annotation and a review thread. An inline comment
+has an **Apply suggestion** button only when Heyo has verified an exact
+replacement for the selected diff line; otherwise it contains the finding
+without an unsafe guessed patch. With `comment-on-clean: true`, Heyo submits a
+clean review when no findings are verified. Existing Heyo bot review comments
+with the same finding fingerprint are not duplicated when the action reruns on
+the same PR head.
 
 ## Development
 

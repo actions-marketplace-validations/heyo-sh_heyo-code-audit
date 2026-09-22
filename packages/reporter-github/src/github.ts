@@ -13,7 +13,13 @@ import type {
   RepositorySnapshot,
 } from "@heyo-sh/code-audit-core";
 import { decodeAuditState, encodeAuditState } from "./state.js";
-import { COMMENT_MARKER, formatComment, formatSummary } from "./format.js";
+import {
+  findingMarker,
+  formatCheckAnnotation,
+  formatCleanReview,
+  formatInlineComment,
+  formatSummary,
+} from "./format.js";
 
 const execFileAsync = promisify(execFile);
 const CHECK_NAME = "Heyo Code Audit";
@@ -183,16 +189,17 @@ export class GitHubAuditPublisher implements AuditPublisher {
     pr: PullRequestContext;
     report: AuditReport;
     state?: AuditState;
+    snapshot?: Pick<RepositorySnapshot, "diff">;
   }): Promise<void> {
     const writesCheck =
       this.config.report === "check" ||
       this.config.report === "check-and-comment";
-    const writesComment =
-      (this.config.report === "comment" ||
-        this.config.report === "check-and-comment") &&
-      (input.report.findings.length > 0 || this.config.commentOnClean);
-    if (writesComment)
-      await this.upsertComment(input.pr, formatComment(input.report));
+    const reportsReview =
+      this.config.report === "comment" ||
+      this.config.report === "check-and-comment";
+    const changedLineFindings = input.snapshot
+      ? findingsOnChangedLines(input.report.findings, input.snapshot.diff)
+      : [];
     if (writesCheck) {
       const summary = checkSummary(input.report, input.state);
       await this.client.rest.checks.create({
@@ -205,43 +212,75 @@ export class GitHubAuditPublisher implements AuditPublisher {
         output: {
           title: `Heyo Code Audit: ${input.report.conclusion}`,
           summary,
+          ...(changedLineFindings.length
+            ? {
+                annotations: changedLineFindings.map(formatCheckAnnotation),
+              }
+            : {}),
         },
       });
     }
+    if (reportsReview && changedLineFindings.length)
+      await this.publishReview(input.pr, changedLineFindings);
+    else if (
+      reportsReview &&
+      this.config.commentOnClean &&
+      input.report.findings.length === 0
+    )
+      await this.publishCleanReview(input.pr, input.report);
   }
 
-  private async upsertComment(
+  private async publishReview(
     pr: PullRequestContext,
-    body: string,
+    findings: LocatedFinding[],
   ): Promise<void> {
-    const comments = await this.client.paginate(
-      this.client.rest.issues.listComments,
+    const existing = await this.client.paginate(
+      this.client.rest.pulls.listReviewComments,
       {
         owner: pr.owner,
         repo: pr.repo,
-        issue_number: pr.number,
+        pull_number: pr.number,
         per_page: 100,
       },
     );
-    const previous = comments.find(
-      (comment) =>
-        comment.user?.type === "Bot" && comment.body?.includes(COMMENT_MARKER),
+    const published = existing
+      .filter(
+        (comment) =>
+          comment.user?.type === "Bot" && comment.commit_id === pr.headSha,
+      )
+      .map((comment) => comment.body ?? "");
+    const fresh = findings.filter(
+      (finding) =>
+        !published.some((body) => body.includes(findingMarker(finding))),
     );
-    if (previous) {
-      await this.client.rest.issues.updateComment({
-        owner: pr.owner,
-        repo: pr.repo,
-        comment_id: previous.id,
-        body,
-      });
-    } else {
-      await this.client.rest.issues.createComment({
-        owner: pr.owner,
-        repo: pr.repo,
-        issue_number: pr.number,
-        body,
-      });
-    }
+    if (!fresh.length) return;
+    await this.client.rest.pulls.createReview({
+      owner: pr.owner,
+      repo: pr.repo,
+      pull_number: pr.number,
+      commit_id: pr.headSha,
+      event: "COMMENT",
+      comments: fresh.map((finding) => ({
+        path: finding.file,
+        line: finding.line,
+        side: "RIGHT",
+        body: formatInlineComment(finding),
+      })),
+    });
+  }
+
+  private async publishCleanReview(
+    pr: PullRequestContext,
+    report: AuditReport,
+  ): Promise<void> {
+    await this.client.rest.pulls.createReview({
+      owner: pr.owner,
+      repo: pr.repo,
+      pull_number: pr.number,
+      commit_id: pr.headSha,
+      event: "COMMENT",
+      body: formatCleanReview(report),
+    });
   }
 }
 
@@ -344,6 +383,69 @@ function truncate(value: string, maximum: number): string {
   const marker = "\n\n_Report truncated by Heyo._";
   if (value.length <= maximum) return value;
   return value.slice(0, Math.max(0, maximum - marker.length)) + marker;
+}
+
+type LocatedFinding = AuditReport["findings"][number] & {
+  file: string;
+  line: number;
+};
+
+function findingsOnChangedLines(
+  findings: AuditReport["findings"],
+  diff: string,
+): LocatedFinding[] {
+  const locations = reviewableLocations(diff);
+  return findings.filter(
+    (finding): finding is LocatedFinding =>
+      typeof finding.file === "string" &&
+      typeof finding.line === "number" &&
+      locations.has(locationKey(finding.file, finding.line)),
+  );
+}
+
+/** Changed right-side lines are the only locations accepted by PR review APIs. */
+export function reviewableLocations(diff: string): Set<string> {
+  const locations = new Set<string>();
+  let file: string | undefined;
+  let headLine = 0;
+  let inHunk = false;
+  for (const diffLine of diff.split("\n")) {
+    if (diffLine.startsWith("diff --git ")) {
+      file = undefined;
+      inHunk = false;
+      continue;
+    }
+    if (diffLine.startsWith("+++ ")) {
+      file = headPath(diffLine);
+      inHunk = false;
+      continue;
+    }
+    const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(diffLine);
+    if (hunk?.[1]) {
+      headLine = Number(hunk[1]);
+      inHunk = Boolean(file);
+      continue;
+    }
+    if (!file || !inHunk || diffLine.startsWith("\\")) continue;
+    if (diffLine.startsWith("+")) {
+      locations.add(locationKey(file, headLine));
+      headLine += 1;
+    } else if (diffLine.startsWith(" ")) {
+      headLine += 1;
+    }
+  }
+  return locations;
+}
+
+function headPath(diffLine: string): string | undefined {
+  const prefix = "+++ b/";
+  if (!diffLine.startsWith(prefix)) return undefined;
+  const path = diffLine.slice(prefix.length);
+  return path && path !== "/dev/null" ? path : undefined;
+}
+
+function locationKey(file: string, line: number): string {
+  return `${file}\u0000${line}`;
 }
 
 function glob(pattern: string): RegExp {

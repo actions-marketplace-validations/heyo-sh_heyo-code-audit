@@ -10,6 +10,7 @@ import {
   createGitHubClient,
   decodeAuditState,
   encodeAuditState,
+  reviewableLocations,
 } from "../src/index.js";
 import {
   parseAuditConfig,
@@ -66,18 +67,17 @@ afterEach(async () => {
 function fakeClient() {
   const calls = {
     checks: [] as unknown[],
-    createComment: [] as unknown[],
-    updateComment: [] as unknown[],
+    reviews: [] as unknown[],
   };
   const order: string[] = [];
   const functions = {
     listCommits: async () => [],
     listForRef: async () => [],
-    listComments: async () => [],
+    listReviewComments: async () => [],
   };
   let commitRows: unknown[] = [];
   let checks: unknown[] = [];
-  let comments: unknown[] = [];
+  let reviewComments: unknown[] = [];
   const client = {
     rest: {
       pulls: {
@@ -90,6 +90,11 @@ function fakeClient() {
           },
         }),
         listCommits: functions.listCommits,
+        listReviewComments: functions.listReviewComments,
+        createReview: async (input: unknown) => {
+          order.push("review");
+          calls.reviews.push(input);
+        },
       },
       checks: {
         listForRef: functions.listForRef,
@@ -98,24 +103,13 @@ function fakeClient() {
           calls.checks.push(input);
         },
       },
-      issues: {
-        listComments: functions.listComments,
-        createComment: async (input: unknown) => {
-          order.push("create-comment");
-          calls.createComment.push(input);
-        },
-        updateComment: async (input: unknown) => {
-          order.push("update-comment");
-          calls.updateComment.push(input);
-        },
-      },
     },
     paginate: async (method: unknown) =>
       method === functions.listCommits
         ? commitRows
         : method === functions.listForRef
           ? checks
-          : comments,
+          : reviewComments,
   };
   return {
     client: client as never,
@@ -124,11 +118,11 @@ function fakeClient() {
     setRows: (next: {
       commitRows?: unknown[];
       checks?: unknown[];
-      comments?: unknown[];
+      reviewComments?: unknown[];
     }) => {
       commitRows = next.commitRows ?? commitRows;
       checks = next.checks ?? checks;
-      comments = next.comments ?? comments;
+      reviewComments = next.reviewComments ?? reviewComments;
     },
   };
 }
@@ -270,7 +264,186 @@ describe("GitHub adapter", () => {
     expect(snapshot.changedPaths).toEqual(["root.ts", "src/nested.ts"]);
   });
 
-  test("publishes checks plus a single replaceable PR comment according to report settings", async () => {
+  test("publishes changed-line findings as Check annotations and inline review comments", async () => {
+    const fake = fakeClient();
+    const config = parseAuditConfig({
+      model: "gpt-5.6-terra",
+      "auth-type": "api-key",
+      "auth-token": "provider",
+      "github-token": "github",
+    });
+    const publisher = new GitHubAuditPublisher(fake.client, config);
+    const finding = {
+      fingerprint: "a-verified-finding",
+      check: "security" as const,
+      severity: "high" as const,
+      confidence: "high" as const,
+      title: "Authorize the account lookup",
+      description:
+        "The changed handler reads an account without a tenant check.",
+      evidence: "The new return sends the loaded account to the caller.",
+      file: "src/route.ts",
+      line: 12,
+      suggestion:
+        "return account.tenantId === tenant.id ? account : undefined;",
+    };
+    const diff = [
+      "diff --git a/src/route.ts b/src/route.ts",
+      "--- a/src/route.ts",
+      "+++ b/src/route.ts",
+      "@@ -12 +12 @@ export function getAccount() {",
+      "-  return account;",
+      "+  return account;",
+    ].join("\n");
+    const unchangedFinding = {
+      ...finding,
+      fingerprint: "not-on-a-changed-line",
+      title: "Do not annotate unchanged code",
+      line: 13,
+    };
+    await publisher.publish({
+      pr,
+      report: {
+        ...report,
+        conclusion: "failure",
+        findings: [finding, unchangedFinding],
+      },
+      snapshot: { diff },
+    });
+    expect(fake.calls.reviews).toEqual([
+      {
+        owner: pr.owner,
+        repo: pr.repo,
+        pull_number: pr.number,
+        commit_id: pr.headSha,
+        event: "COMMENT",
+        comments: [
+          {
+            path: "src/route.ts",
+            line: 12,
+            side: "RIGHT",
+            body: expect.stringContaining(
+              "```suggestion\nreturn account.tenantId === tenant.id ? account : undefined;\n```",
+            ),
+          },
+        ],
+      },
+    ]);
+    expect(fake.order).toEqual(["check", "review"]);
+    expect(fake.calls.checks).toEqual([
+      expect.objectContaining({
+        output: expect.objectContaining({
+          annotations: [
+            {
+              path: "src/route.ts",
+              start_line: 12,
+              end_line: 12,
+              annotation_level: "failure",
+              title: "HIGH · SECURITY: Authorize the account lookup",
+              message:
+                "The changed handler reads an account without a tenant check.\n\nEvidence: The new return sends the loaded account to the caller.",
+            },
+          ],
+        }),
+      }),
+    ]);
+
+    fake.setRows({
+      reviewComments: [
+        {
+          user: { type: "Bot" },
+          commit_id: pr.headSha,
+          body: "<!-- heyo-code-audit-finding:a-verified-finding -->",
+        },
+      ],
+    });
+    await publisher.publish({
+      pr,
+      report: {
+        ...report,
+        conclusion: "failure",
+        findings: [finding, unchangedFinding],
+      },
+      snapshot: { diff },
+    });
+    expect(fake.calls.reviews).toHaveLength(1);
+  });
+
+  test("publishes Check annotations without comments in check mode", async () => {
+    const fake = fakeClient();
+    const config = parseAuditConfig({
+      model: "gpt-5.6-terra",
+      "auth-type": "api-key",
+      "auth-token": "provider",
+      "github-token": "github",
+      report: "check",
+    });
+    const publisher = new GitHubAuditPublisher(fake.client, config);
+    await publisher.publish({
+      pr,
+      report: {
+        ...report,
+        conclusion: "failure",
+        findings: [
+          {
+            fingerprint: "check-only-finding",
+            check: "functional",
+            severity: "medium",
+            confidence: "high",
+            title: "The response omits a required field",
+            description: "The changed handler no longer returns the field.",
+            evidence: "The return object lacks the documented property.",
+            file: "src/route.ts",
+            line: 12,
+          },
+        ],
+      },
+      snapshot: {
+        diff: [
+          "diff --git a/src/route.ts b/src/route.ts",
+          "--- a/src/route.ts",
+          "+++ b/src/route.ts",
+          "@@ -12 +12 @@ export function handler() {",
+          "-  return { value };",
+          "+  return {};",
+        ].join("\n"),
+      },
+    });
+
+    expect(fake.calls.reviews).toHaveLength(0);
+    expect(fake.calls.checks).toEqual([
+      expect.objectContaining({
+        output: expect.objectContaining({
+          annotations: [
+            expect.objectContaining({
+              annotation_level: "warning",
+              path: "src/route.ts",
+              start_line: 12,
+            }),
+          ],
+        }),
+      }),
+    ]);
+  });
+
+  test("keeps only changed right-side lines eligible for inline comments", () => {
+    const locations = reviewableLocations(
+      [
+        "diff --git a/src/app.ts b/src/app.ts",
+        "--- a/src/app.ts",
+        "+++ b/src/app.ts",
+        "@@ -8,3 +8,4 @@",
+        " unchanged();",
+        "-removed();",
+        "+added();",
+        "+alsoAdded();",
+        " unchangedAgain();",
+      ].join("\n"),
+    );
+    expect([...locations]).toEqual(["src/app.ts\u00009", "src/app.ts\u000010"]);
+  });
+
+  test("publishes a clean PR review and supports review-only reporting", async () => {
     const fake = fakeClient();
     const config = parseAuditConfig({
       model: "gpt-5.6-terra",
@@ -282,25 +455,24 @@ describe("GitHub adapter", () => {
     const publisher = new GitHubAuditPublisher(fake.client, config);
     await publisher.publish({ pr, report, state });
     expect(fake.calls.checks).toHaveLength(1);
-    expect(fake.calls.createComment).toHaveLength(1);
-    expect(fake.order).toEqual(["create-comment", "check"]);
-    fake.setRows({
-      comments: [
-        {
-          id: 44,
-          user: { type: "Bot" },
-          body: "<!-- heyo-code-audit-report -->\nold",
-        },
-      ],
-    });
-    await publisher.publish({ pr, report });
-    expect(fake.calls.updateComment).toHaveLength(1);
-    const commentOnly = new GitHubAuditPublisher(fake.client, {
+    expect(fake.calls.reviews).toEqual([
+      {
+        owner: pr.owner,
+        repo: pr.repo,
+        pull_number: pr.number,
+        commit_id: pr.headSha,
+        event: "COMMENT",
+        body: "## Heyo Code Audit — success\n\nClean",
+      },
+    ]);
+    expect(fake.order).toEqual(["check", "review"]);
+
+    const reviewOnly = new GitHubAuditPublisher(fake.client, {
       ...config,
       report: "comment",
       commentOnClean: false,
     });
-    await commentOnly.publish({
+    await reviewOnly.publish({
       pr,
       report: {
         ...report,
@@ -313,12 +485,24 @@ describe("GitHub adapter", () => {
             title: "Title",
             description: "Description",
             evidence: "Evidence",
+            file: "src/route.ts",
+            line: 12,
           },
         ],
       },
+      snapshot: {
+        diff: [
+          "diff --git a/src/route.ts b/src/route.ts",
+          "--- a/src/route.ts",
+          "+++ b/src/route.ts",
+          "@@ -12 +12 @@",
+          "-old();",
+          "+new();",
+        ].join("\n"),
+      },
     });
-    expect(fake.calls.checks).toHaveLength(2);
-    expect(fake.calls.updateComment).toHaveLength(2);
+    expect(fake.calls.checks).toHaveLength(1);
+    expect(fake.calls.reviews).toHaveLength(2);
     expect(createGitHubClient("token")).toBeDefined();
   });
 

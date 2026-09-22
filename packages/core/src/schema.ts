@@ -39,6 +39,7 @@ export function parseFinding(value: unknown): Finding {
   const title = requiredText(value.title, "title", 160);
   const description = requiredText(value.description, "description", 800);
   const evidence = requiredText(value.evidence, "evidence", 800);
+  const suggestion = optionalSuggestion(value.suggestion);
   const file = optionalFile(value.file);
   const line = optionalLine(value.line);
   const fingerprint = fingerprintFor({
@@ -56,6 +57,7 @@ export function parseFinding(value: unknown): Finding {
     title,
     description,
     evidence,
+    ...(suggestion ? { suggestion } : {}),
     ...(file ? { file } : {}),
     ...(line ? { line } : {}),
   };
@@ -126,6 +128,17 @@ function requiredText(value: unknown, name: string, max: number): string {
 
 function clean(value: string, max: number): string {
   return value.replaceAll("\u0000", "").trim().slice(0, max);
+}
+
+function optionalSuggestion(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || !value.trim())
+    throw new SchemaError("Finding suggestion is invalid.");
+  const suggestion = clean(value, 4_000);
+  if (suggestion.includes("```"))
+    throw new SchemaError("Finding suggestion is invalid.");
+  // A redacted suggestion would no longer be a valid replacement, so omit it.
+  return redactSecrets(suggestion) === suggestion ? suggestion : undefined;
 }
 
 function optionalFile(value: unknown): string | undefined {

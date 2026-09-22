@@ -39,7 +39,7 @@ inputs:
     required: false
     default: check-and-comment
   comment-on-clean:
-    description: Publish or update the report comment when there are no findings.
+    description: Publish a clean PR review when there are no findings.
     required: false
     default: "false"
   fail-on:
