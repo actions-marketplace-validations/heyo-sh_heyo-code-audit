@@ -1,6 +1,23 @@
-# Heyo Code Audit
+<div align="center">
+  <h1>Heyo Code Audit</h1>
+  <p>Provider-agnostic, verified AI code auditing for GitHub pull requests.</p>
+  <p>
+    <a href="https://github.com/heyo-sh/heyo-code-audit/releases"><img src="https://img.shields.io/github/v/release/heyo-sh/heyo-code-audit?display_name=tag&sort=semver&style=flat&colorA=000000&colorB=000000" alt="GitHub release"/></a>
+    <a href="https://github.com/heyo-sh/heyo-code-audit/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/heyo-sh/heyo-code-audit/ci.yml?branch=main&style=flat&label=checks&colorA=000000&colorB=000000" alt="checks"/></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-000000?style=flat&colorA=000000&colorB=000000" alt="MIT License"/></a>
+  </p>
+  <p>
+    <a href="#quick-start">Quick start</a>
+    ·
+    <a href="#behavior-and-safety">Safety</a>
+    ·
+    <a href="#releases">Releases</a>
+    ·
+    <a href="CONTRIBUTING.md">Contributing</a>
+  </p>
+</div>
 
-Provider-agnostic, verified AI code auditing for GitHub pull requests. Heyo reads
+Heyo reads
 the PR diff and repository context, discovers candidate issues, verifies each
 candidate in a separate Pi session, and publishes a GitHub Check and/or a PR
 review according to the selected reporting mode. Findings on changed lines are
@@ -9,7 +26,7 @@ also published as inline PR review comments. When the verifier can prove an
 exact replacement for the selected diff line, the review comment includes
 GitHub's **Apply suggestion** control.
 
-## Install
+## Quick start
 
 ```yaml
 name: Heyo Code Audit
@@ -193,6 +210,18 @@ bundle differs. The repository
 also includes CodeQL, Dependabot, Changesets-driven release automation, and
 concurrency-safe CI adapted from the Heyo documentation project.
 
+## Contributing
+
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for local
+setup, validation, and release-artifact expectations.
+
+## Support and security
+
+Use [GitHub Discussions](https://github.com/heyo-sh/heyo-code-audit/discussions)
+for questions and implementation help. Report suspected vulnerabilities only
+through the private process in [SECURITY.md](SECURITY.md); never include tokens
+or repository secrets in a public issue, workflow log, or discussion.
+
 ## Releases
 
 The action is released as one unit through `@heyo-sh/heyo-code-audit`, even
@@ -212,6 +241,20 @@ Before enabling this workflow in GitHub, allow Actions to create pull requests
 in **Settings → Actions → General**. If tag protection is enabled, allow the
 release workflow to create immutable version tags and move the major tag.
 
+## GitHub Marketplace
+
+The first Marketplace publication is a one-time manual release step. Before
+merging the release PR, create an Actions variable named `HEYO_RELEASE_DRAFT`
+with the value `true`. The release workflow then creates a draft GitHub Release
+instead of publishing it. Open that draft, select **Publish this Action to the
+GitHub Marketplace**, choose the **Code quality** and **Security** categories,
+and publish the release. Delete the variable afterwards so later releases are
+published automatically.
+
+The release tag must point at a commit containing the committed `dist/action.js`,
+[`action.yml`](action.yml), this README, and the [MIT License](LICENSE).
+Marketplace users can reference immutable version tags or the stable `v1` tag.
+
 ## License
 
-This repository is licensed under the [MIT License](LICENSE).
+[MIT](LICENSE)
