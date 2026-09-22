@@ -1,6 +1,6 @@
 {
   "name": "@heyo-sh/heyo-code-audit",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Provider-agnostic, verified AI code audit action for GitHub pull requests.",
   "license": "MIT",
   "private": true,
