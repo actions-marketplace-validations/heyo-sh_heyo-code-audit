@@ -1,7 +1,7 @@
 import type { CheckId, Finding, RepositorySnapshot } from "./types.js";
 import { redactSecrets } from "./redaction.js";
 
-export const POLICY_VERSION = "2026-09-13.1";
+export const POLICY_VERSION = "2026-09-22.1";
 
 const CHECK_INSTRUCTIONS: Record<CheckId, string> = {
   security:
@@ -33,9 +33,9 @@ const DISCOVERY_PROCESS = `Work in this order:
 4. Actively seek disproof: existing validation, a compensating caller, a safe default, an intentional contract, unreachable code, or an alternative explanation. Discard the candidate if any required link cannot be established.
 5. Consolidate by root cause and keep only the highest-value candidates. A clean result is correct when no candidate meets this standard.`;
 
-const FINDING_CONTRACT = `The response is a triage record, not a review essay. Every finding must use one enabled check and be written in clear English. Its title states the defect and affected behavior concisely. Its description explains the trigger, broken behavior, and impact without asserting possibilities as facts. Its evidence identifies the decisive current-code or diff fact and why it creates the failure. Set file and line to the exact location in the audited head that should be changed whenever a source location exists; do not invent a location. The maximum is 20 non-duplicate findings.
+const FINDING_CONTRACT = `The response is a triage record, not a review essay. Every finding must use one enabled check and be written in clear English. Its title states the defect and affected behavior concisely. Its description explains the trigger, broken behavior, and impact without asserting possibilities as facts. Its evidence identifies the decisive current-code or diff fact and why it creates the failure. Set file and line to the exact changed or added line in the audited head that should be changed whenever a source location exists; do not invent a location. This lets Heyo publish the finding directly on the PR diff. When an exact replacement for that one selected line is safe and fully fixes the finding, include the optional suggestion field with only that replacement code. Omit suggestion when the repair needs more context, multiple selected lines, or any guesswork. The maximum is 20 non-duplicate findings.
 
-Return exactly one JSON object and nothing else: {"findings":[{"check":"security|regression|functional|nonfunctional","severity":"low|medium|high|critical","confidence":"medium|high","title":"...","description":"...","evidence":"...","file":"path/at/head.ext","line":123}]}. Do not include a fingerprint, Markdown, commentary, a remediation field, or fields outside this object. An empty findings array is the correct response when nothing clears the evidence standard.`;
+Return exactly one JSON object and nothing else: {"findings":[{"check":"security|regression|functional|nonfunctional","severity":"low|medium|high|critical","confidence":"medium|high","title":"...","description":"...","evidence":"...","file":"path/at/head.ext","line":123,"suggestion":"exact replacement code for line 123"}]}. suggestion is optional. Do not include a fingerprint, Markdown, commentary, a remediation field, or fields outside this object. An empty findings array is the correct response when nothing clears the evidence standard.`;
 
 export function discoveryPrompt(input: {
   checks: CheckId[];
@@ -79,11 +79,11 @@ export function verificationPrompt(input: {
 1. Read the candidate as an untrusted claim. Locate its stated current-head file and line, then inspect the surrounding implementation and the narrowest necessary callers or consumers.
 2. Rebuild the claimed scenario from repository facts. Confirm the actor or state can reach the code, the changed branch actually executes, and the claimed output, side effect, access decision, or failure follows.
 3. Examine the relevant diff and base-to-head behavior. Confirm that the defect is introduced by this audited change rather than already present, fixed elsewhere, intentional, or prevented by validation or a caller.
-4. Reassess the check, severity, confidence, title, location, and evidence. A verified finding may be more precise or lower-severity than the candidate, but it must describe the same root cause and use an enabled check.
+4. Reassess the check, severity, confidence, title, location, evidence, and optional selected-line replacement suggestion. A verified finding may be more precise or lower-severity than the candidate, but it must describe the same root cause and use an enabled check.
 5. Reject when the path is unreachable, prerequisites are not repository-backed, the result is merely possible, the location is wrong, the issue is outside scope, or a reasonable reading of the code defeats the claim. A concise rejection is preferable to an uncertain report.
 
 Use the fixed bundled verification tool only if its whitespace check is relevant to the candidate; its result cannot establish functional, security, or regression behavior by itself.`,
-    `Return exactly one JSON object and nothing else. For rejection return {"verified":false,"reason":"brief factual reason"}. For confirmation return {"verified":true,"finding":{"check":"security|regression|functional|nonfunctional","severity":"low|medium|high|critical","confidence":"medium|high","title":"...","description":"...","evidence":"...","file":"path/at/head.ext","line":123}}. The finding must meet the same English, current-head location, evidence, and no-duplicate requirements as discovery. Do not include a fingerprint, Markdown, extra fields, or a newly invented finding.`,
+    `Return exactly one JSON object and nothing else. For rejection return {"verified":false,"reason":"brief factual reason"}. For confirmation return {"verified":true,"finding":{"check":"security|regression|functional|nonfunctional","severity":"low|medium|high|critical","confidence":"medium|high","title":"...","description":"...","evidence":"...","file":"path/at/head.ext","line":123,"suggestion":"optional exact replacement code for line 123"}}. suggestion is optional and is valid only for an exact replacement of the selected changed line. The finding must meet the same English, current-head location, evidence, and no-duplicate requirements as discovery. Do not include a fingerprint, Markdown, extra fields, or a newly invented finding.`,
     untrusted("Candidate", JSON.stringify(input.candidate), 8_000),
     untrusted(
       "Relevant changed paths",

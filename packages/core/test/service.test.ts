@@ -95,9 +95,16 @@ class FakeRuntime implements AuditRuntime {
 }
 
 class FakePublisher implements AuditPublisher {
-  publications: Array<{ state?: AuditState; report: { conclusion: string } }> =
-    [];
-  async publish(input: { state?: AuditState; report: { conclusion: string } }) {
+  publications: Array<{
+    state?: AuditState;
+    report: { conclusion: string };
+    snapshot?: Pick<RepositorySnapshot, "diff">;
+  }> = [];
+  async publish(input: {
+    state?: AuditState;
+    report: { conclusion: string };
+    snapshot?: Pick<RepositorySnapshot, "diff">;
+  }) {
     this.publications.push(input);
   }
 }
@@ -128,6 +135,7 @@ describe("audit pipeline", () => {
     expect(setup.publisher.publications[0]?.state?.policyVersion).toBe(
       POLICY_VERSION,
     );
+    expect(setup.publisher.publications[0]?.snapshot).toEqual({ diff: "diff" });
   });
 
   test("uses a compatible state incrementally and re-verifies active findings", async () => {

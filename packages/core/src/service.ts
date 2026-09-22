@@ -117,6 +117,7 @@ export class AuditService {
       await this.dependencies.publisher.publish({
         pr,
         report,
+        snapshot: { diff: snapshot.diff },
         ...(state ? { state } : {}),
       });
       return { kind: "published", report, ...(state ? { state } : {}) };
