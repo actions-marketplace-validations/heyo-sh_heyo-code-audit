@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import {
   GitHubAuditPublisher,
   GitHubAuditRepository,
+  GitHubReviewProgress,
   createGitHubClient,
   decodeAuditState,
   encodeAuditState,
@@ -68,6 +69,7 @@ function fakeClient() {
   const calls = {
     checks: [] as unknown[],
     reviews: [] as unknown[],
+    reactions: [] as unknown[],
   };
   const order: string[] = [];
   const functions = {
@@ -103,6 +105,17 @@ function fakeClient() {
           calls.checks.push(input);
         },
       },
+      reactions: {
+        createForIssue: async (input: unknown) => {
+          order.push("reaction");
+          calls.reactions.push(input);
+          return { data: { id: calls.reactions.length } };
+        },
+        deleteForIssue: async (input: unknown) => {
+          order.push("reaction");
+          calls.reactions.push(input);
+        },
+      },
     },
     paginate: async (method: unknown) =>
       method === functions.listCommits
@@ -128,6 +141,53 @@ function fakeClient() {
 }
 
 describe("GitHub adapter", () => {
+  test("shows eyes while an audit runs and likes only clean pull requests", async () => {
+    const fake = fakeClient();
+    const progress = new GitHubReviewProgress(fake.client, {
+      owner: pr.owner,
+      repo: pr.repo,
+      prNumber: pr.number,
+    });
+
+    await progress.start();
+    await progress.finish(true);
+    await progress.start();
+    await progress.finish(false);
+
+    expect(fake.calls.reactions).toEqual([
+      {
+        owner: pr.owner,
+        repo: pr.repo,
+        issue_number: pr.number,
+        content: "eyes",
+      },
+      {
+        owner: pr.owner,
+        repo: pr.repo,
+        issue_number: pr.number,
+        reaction_id: 1,
+      },
+      {
+        owner: pr.owner,
+        repo: pr.repo,
+        issue_number: pr.number,
+        content: "+1",
+      },
+      {
+        owner: pr.owner,
+        repo: pr.repo,
+        issue_number: pr.number,
+        content: "eyes",
+      },
+      {
+        owner: pr.owner,
+        repo: pr.repo,
+        issue_number: pr.number,
+        reaction_id: 4,
+      },
+    ]);
+  });
+
   test("reads PR metadata, finds only valid completed owned state, and checks current head", async () => {
     const fake = fakeClient();
     fake.setRows({

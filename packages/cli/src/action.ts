@@ -11,6 +11,7 @@ import {
   createGitHubClient,
   GitHubAuditPublisher,
   GitHubAuditRepository,
+  GitHubReviewProgress,
 } from "@heyo-sh/code-audit-reporter-github";
 import {
   PiAuditRuntime,
@@ -34,10 +35,19 @@ interface AuditRunner {
   run(config: AuditConfig): Promise<RunOutcome>;
 }
 
+interface ReviewProgress {
+  start(): Promise<void>;
+  finish(clean: boolean): Promise<void>;
+}
+
 export interface ActionDependencies {
   core: ActionCore;
   readEvent(path: string | undefined): Promise<PullRequestEvent>;
   createAudit(config: AuditConfig, context: AuditContext): AuditRunner;
+  createReviewProgress?(
+    config: AuditConfig,
+    context: AuditContext,
+  ): ReviewProgress;
 }
 
 export interface AuditContext {
@@ -51,6 +61,7 @@ const DEFAULT_DEPENDENCIES: ActionDependencies = {
   core,
   readEvent: eventPayload,
   createAudit: createAuditService,
+  createReviewProgress: createGitHubReviewProgress,
 };
 
 export async function runAction(
@@ -92,13 +103,27 @@ export async function runAction(
     "max-pr-commits": dependencies.core.getInput("max-pr-commits"),
     "max-new-commits": dependencies.core.getInput("max-new-commits"),
   });
-  const audit = dependencies.createAudit(config, {
+  const context = {
     owner,
     repo,
     prNumber: event.number,
     workspace: environment.GITHUB_WORKSPACE,
-  });
-  const outcome = await audit.run(config);
+  };
+  const audit = dependencies.createAudit(config, context);
+  const progress = dependencies.createReviewProgress?.(config, context);
+  await startReviewProgress(progress, dependencies.core);
+  let outcome: RunOutcome;
+  try {
+    outcome = await audit.run(config);
+  } catch (error) {
+    await finishReviewProgress(progress, false, dependencies.core);
+    throw error;
+  }
+  await finishReviewProgress(
+    progress,
+    outcome.kind === "published" && outcome.report.findings.length === 0,
+    dependencies.core,
+  );
   dependencies.core.setOutput("outcome", outcome.kind);
   if (outcome.kind === "published") {
     dependencies.core.setOutput("conclusion", outcome.report.conclusion);
@@ -117,6 +142,16 @@ export async function runAction(
       "Heyo Code Audit did not publish because the pull request head changed during the run.",
     );
   }
+}
+
+export function createGitHubReviewProgress(
+  config: AuditConfig,
+  context: AuditContext,
+): GitHubReviewProgress {
+  return new GitHubReviewProgress(
+    createGitHubClient(config.githubToken),
+    context,
+  );
 }
 
 export function createAuditService(
@@ -153,6 +188,35 @@ export function createSnapshotResolver(
       return repository.getSnapshot(baseSha, headSha, paths);
     },
   };
+}
+
+async function startReviewProgress(
+  progress: ReviewProgress | undefined,
+  core: ActionCore,
+): Promise<void> {
+  if (!progress) return;
+  try {
+    await progress.start();
+  } catch {
+    core.warning(
+      "Heyo Code Audit could not add its in-progress reaction to this pull request.",
+    );
+  }
+}
+
+async function finishReviewProgress(
+  progress: ReviewProgress | undefined,
+  clean: boolean,
+  core: ActionCore,
+): Promise<void> {
+  if (!progress) return;
+  try {
+    await progress.finish(clean);
+  } catch {
+    core.warning(
+      "Heyo Code Audit could not update its in-progress reaction on this pull request.",
+    );
+  }
 }
 
 export async function eventPayload(

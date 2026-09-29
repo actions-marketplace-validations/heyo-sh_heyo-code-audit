@@ -79,8 +79,11 @@ and OpenAI Codex use `oauth`; Amazon Bedrock supports `aws` or
 `bedrock-bearer`.
 
 The default report mode creates both a **Heyo Code Audit** GitHub Check and an
-inline pull-request review. Configure reporting, severity thresholds, paths,
-incremental runs, and commit limits in the Action inputs.
+inline pull-request review. While the audit runs, Heyo adds an 👀 reaction to
+the pull request. It replaces it with 👍 only when there are no verified
+findings; otherwise it removes the 👀 reaction when the review finishes.
+Configure reporting, severity thresholds, paths, incremental runs, and commit
+limits in the Action inputs.
 
 ## Documentation
 
