@@ -33,6 +33,47 @@ export interface GitHubEnvironment {
   repositoryPath: string;
 }
 
+/** Maintains the pull-request reaction that indicates an audit is in progress. */
+export class GitHubReviewProgress {
+  private eyesReactionId: number | undefined;
+
+  constructor(
+    private readonly client: Octokit,
+    private readonly environment: Pick<
+      GitHubEnvironment,
+      "owner" | "repo" | "prNumber"
+    >,
+  ) {}
+
+  async start(): Promise<void> {
+    const { data } = await this.client.rest.reactions.createForIssue({
+      owner: this.environment.owner,
+      repo: this.environment.repo,
+      issue_number: this.environment.prNumber,
+      content: "eyes",
+    });
+    this.eyesReactionId = data.id;
+  }
+
+  async finish(clean: boolean): Promise<void> {
+    if (this.eyesReactionId === undefined) return;
+    await this.client.rest.reactions.deleteForIssue({
+      owner: this.environment.owner,
+      repo: this.environment.repo,
+      issue_number: this.environment.prNumber,
+      reaction_id: this.eyesReactionId,
+    });
+    this.eyesReactionId = undefined;
+    if (!clean) return;
+    await this.client.rest.reactions.createForIssue({
+      owner: this.environment.owner,
+      repo: this.environment.repo,
+      issue_number: this.environment.prNumber,
+      content: "+1",
+    });
+  }
+}
+
 export class GitHubAuditRepository implements AuditRepository {
   constructor(
     private readonly client: Octokit,

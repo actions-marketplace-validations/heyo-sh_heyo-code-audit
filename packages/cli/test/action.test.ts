@@ -11,6 +11,7 @@ import {
 } from "@heyo-sh/code-audit-core";
 import {
   createAuditService,
+  createGitHubReviewProgress,
   createSnapshotResolver,
   eventPayload,
   runAction,
@@ -216,6 +217,87 @@ describe("GitHub Action entry point", () => {
     expect(messages.warnings.at(-1)).toContain("head changed");
   });
 
+  test("updates the in-progress reaction around the audit and likes only clean reports", async () => {
+    const calls: string[] = [];
+    const reactionDependencies: ActionDependencies = {
+      ...dependencies,
+      createReviewProgress: () => ({
+        start: async () => {
+          calls.push("start");
+        },
+        finish: async (clean) => {
+          calls.push(`finish:${clean}`);
+        },
+      }),
+    };
+
+    await runAction(environment, reactionDependencies);
+    expect(calls).toEqual(["start", "finish:true"]);
+
+    nextOutcome = {
+      kind: "published",
+      report: {
+        ...report,
+        conclusion: "failure",
+        findings: [
+          {
+            fingerprint: "finding",
+            check: "functional",
+            severity: "high",
+            confidence: "high",
+            title: "Title",
+            description: "Description",
+            evidence: "Evidence",
+          },
+        ],
+      },
+      state,
+    };
+    await runAction(environment, reactionDependencies);
+    expect(calls).toEqual(["start", "finish:true", "start", "finish:false"]);
+  });
+
+  test("keeps audit failures and reaction failures from leaving the progress reaction", async () => {
+    const reactionFailures: ActionDependencies = {
+      ...dependencies,
+      createReviewProgress: () => ({
+        start: async () => {
+          throw new Error("cannot react");
+        },
+        finish: async () => {
+          throw new Error("cannot update reaction");
+        },
+      }),
+    };
+    await runAction(environment, reactionFailures);
+    expect(messages.warnings).toEqual([
+      "Heyo Code Audit could not add its in-progress reaction to this pull request.",
+      "Heyo Code Audit could not update its in-progress reaction on this pull request.",
+    ]);
+
+    const progressCalls: string[] = [];
+    const auditFailure: ActionDependencies = {
+      ...dependencies,
+      createAudit: () => ({
+        run: async () => {
+          throw new Error("audit failed");
+        },
+      }),
+      createReviewProgress: () => ({
+        start: async () => {
+          progressCalls.push("start");
+        },
+        finish: async (clean) => {
+          progressCalls.push(`finish:${clean}`);
+        },
+      }),
+    };
+    await expect(runAction(environment, auditFailure)).rejects.toThrow(
+      "audit failed",
+    );
+    expect(progressCalls).toEqual(["start", "finish:false"]);
+  });
+
   test("fails the job only for a published failure", async () => {
     nextOutcome = {
       kind: "published",
@@ -235,14 +317,14 @@ test("builds the production service and pins Pi snapshots to the workspace", asy
     "auth-token": "provider-key",
     "github-token": "github-token",
   });
-  expect(
-    createAuditService(config, {
-      owner: "heyo",
-      repo: "audit",
-      prNumber: 7,
-      workspace: undefined,
-    }),
-  ).toBeInstanceOf(AuditService);
+  const context = {
+    owner: "heyo",
+    repo: "audit",
+    prNumber: 7,
+    workspace: undefined,
+  };
+  expect(createAuditService(config, context)).toBeInstanceOf(AuditService);
+  expect(createGitHubReviewProgress(config, context)).toBeDefined();
 
   let snapshotRequest: string[] | undefined;
   const repository = {
