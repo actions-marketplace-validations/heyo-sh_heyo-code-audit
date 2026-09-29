@@ -1,5 +1,11 @@
 # @heyo-sh/heyo-code-audit
 
+## 1.2.0
+
+### Minor Changes
+
+- 45ee390: Show an eyes reaction while a pull-request audit runs, then replace it with a thumbs-up for clean audits or remove it when findings remain.
+
 ## 1.1.1
 
 ### Patch Changes
