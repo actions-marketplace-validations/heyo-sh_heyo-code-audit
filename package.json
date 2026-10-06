@@ -25,7 +25,7 @@
     "@changesets/cli": "3.0.3",
     "@opentelemetry/api": "1.9.1",
     "@types/bun": "1.4.2",
-    "@types/node": "26.6.3",
+    "@types/node": "26.6.4",
     "husky": "9.1.7",
     "prettier": "3.9.9",
     "typescript": "7.0.2"
