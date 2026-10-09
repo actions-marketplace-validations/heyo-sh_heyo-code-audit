@@ -63,7 +63,7 @@ inputs:
     default: "20"
 outputs:
   outcome:
-    description: published, skipped, stale, or skipped-fork-without-auth-token.
+    description: published, skipped, errored, stale, or skipped-fork-without-auth-token.
   conclusion:
     description: GitHub Check conclusion when a report was produced.
 runs:

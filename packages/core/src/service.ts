@@ -4,7 +4,7 @@ import {
   discoveryPrompt,
   verificationPrompt,
 } from "./prompts.js";
-import { createReport, neutralReport } from "./report.js";
+import { createReport, errorReport, neutralReport } from "./report.js";
 import { deduplicateFindings } from "./schema.js";
 import type {
   AuditConfig,
@@ -43,8 +43,10 @@ export class AuditService {
     const pr = await this.dependencies.repository.getPullRequest();
     const configDigest = configHash(config);
     let scope: AuditScope = "full";
+    let stage = "loading previous audit state";
     try {
       const previous = await this.dependencies.repository.findLatestState(pr);
+      stage = "selecting the audit scope";
       const decision = await this.selectScope(
         config,
         configDigest,
@@ -54,6 +56,7 @@ export class AuditService {
       scope = decision.scope;
       const limit =
         scope === "full" ? config.maxPrCommits : config.maxNewCommits;
+      stage = "checking the commit limit";
       const commitCount = await this.dependencies.repository.countCommits(
         decision.fromSha,
         pr.headSha,
@@ -71,11 +74,13 @@ export class AuditService {
         );
       }
 
+      stage = "loading the repository snapshot";
       const snapshot = await this.dependencies.repository.getSnapshot(
         decision.fromSha,
         pr.headSha,
         config.paths,
       );
+      stage = "running discovery";
       const discovery = await this.dependencies.runtime.run(
         this.runtimeInput(
           config,
@@ -99,6 +104,7 @@ export class AuditService {
             ...(decision.previous?.findings ?? []),
           ])
         : discovery.findings;
+      stage = "verifying candidate findings";
       const findings = config.verification
         ? await this.verify(config, snapshot, candidates)
         : candidates;
@@ -112,8 +118,10 @@ export class AuditService {
         findings,
       });
       const state = this.stateFor(config, configDigest, pr, report.findings);
+      stage = "checking the pull request head";
       if (!(await this.dependencies.repository.isCurrentHead(pr, pr.headSha)))
         return { kind: "stale" };
+      stage = "publishing the audit report";
       await this.dependencies.publisher.publish({
         pr,
         report,
@@ -121,15 +129,14 @@ export class AuditService {
         ...(state ? { state } : {}),
       });
       return { kind: "published", report, ...(state ? { state } : {}) };
-    } catch {
-      const report = neutralReport({
+    } catch (error) {
+      const report = errorReport({
         config,
         pr,
         scope,
-        summary:
-          "Heyo could not complete this audit reliably. No audit state was advanced.",
+        summary: `Heyo could not complete this ${scope} audit while ${stage}. No audit state was advanced.`,
       });
-      return this.publishWithoutState(pr, report);
+      return this.publishWithoutState(pr, report, { error });
     }
   }
 
@@ -223,10 +230,13 @@ export class AuditService {
   private async publishWithoutState(
     pr: PullRequestContext,
     report: ReturnType<typeof neutralReport>,
+    failure?: { error: unknown },
   ): Promise<RunOutcome> {
     if (!(await this.dependencies.repository.isCurrentHead(pr, pr.headSha)))
       return { kind: "stale" };
     await this.dependencies.publisher.publish({ pr, report });
-    return { kind: "skipped", report };
+    return failure
+      ? { kind: "errored", report, error: failure.error }
+      : { kind: "skipped", report };
   }
 }
