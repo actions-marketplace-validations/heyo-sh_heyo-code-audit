@@ -169,4 +169,5 @@ export interface AuditPublisher {
 export type RunOutcome =
   | { kind: "published"; report: AuditReport; state?: AuditState }
   | { kind: "stale" }
-  | { kind: "skipped"; report: AuditReport };
+  | { kind: "skipped"; report: AuditReport }
+  | { kind: "errored"; report: AuditReport; error: unknown };

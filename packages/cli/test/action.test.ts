@@ -187,7 +187,7 @@ describe("GitHub Action entry point", () => {
     expect(createdContext).toMatchObject({ owner: "heyo", repo: "audit" });
   });
 
-  test("maps normal published, skipped, and stale outcomes to action output", async () => {
+  test("maps published, skipped, errored, and stale outcomes to action output", async () => {
     await runAction(environment, dependencies);
     expect(messages.outputs).toEqual(
       new Map([
@@ -210,6 +210,27 @@ describe("GitHub Action entry point", () => {
     await runAction(environment, dependencies);
     expect(messages.outputs.get("conclusion")).toBe("neutral");
     expect(messages.warnings.at(-1)).toBe("Limited");
+
+    nextOutcome = {
+      kind: "errored",
+      report: {
+        ...report,
+        conclusion: "failure",
+        summary: "Heyo failed while running discovery.",
+      },
+      error: new Error("provider-key rejected sk-abcdefghijklmnopqrstuvwxyz"),
+    };
+    await runAction(environment, dependencies);
+    expect(messages.outputs.get("outcome")).toBe("errored");
+    expect(messages.outputs.get("conclusion")).toBe("failure");
+    expect(messages.failures.at(-1)).toContain(
+      "Heyo failed while running discovery.",
+    );
+    expect(messages.failures.at(-1)).toContain("[REDACTED_SECRET]");
+    expect(messages.failures.at(-1)).not.toContain("provider-key");
+    expect(messages.failures.at(-1)).not.toContain(
+      "sk-abcdefghijklmnopqrstuvwxyz",
+    );
 
     nextOutcome = { kind: "stale" };
     await runAction(environment, dependencies);
@@ -298,7 +319,7 @@ describe("GitHub Action entry point", () => {
     expect(progressCalls).toEqual(["start", "finish:false"]);
   });
 
-  test("fails the job only for a published failure", async () => {
+  test("fails the job for verified findings", async () => {
     nextOutcome = {
       kind: "published",
       report: { ...report, conclusion: "failure" },

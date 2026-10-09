@@ -186,7 +186,7 @@ describe("audit pipeline", () => {
     expect(setup.publisher.publications[0]?.report.conclusion).toBe("neutral");
   });
 
-  test("does not publish stale heads and turns runtime failures neutral without state", async () => {
+  test("does not publish stale heads and marks runtime failures without state", async () => {
     const stale = service();
     stale.repository.current = false;
     expect((await stale.audit.run(config)).kind).toBe("stale");
@@ -199,9 +199,15 @@ describe("audit pipeline", () => {
     const broken = service(new FakeRepository(), brokenRuntime);
     const outcome = await broken.audit.run(config);
     expect(outcome).toMatchObject({
-      kind: "skipped",
-      report: { conclusion: "neutral" },
+      kind: "errored",
+      report: {
+        conclusion: "failure",
+        summary:
+          "Heyo could not complete this full audit while running discovery. No audit state was advanced.",
+      },
     });
+    if (outcome.kind !== "errored") throw new Error("Expected an error.");
+    expect(outcome.error).toBeInstanceOf(Error);
     expect(broken.publisher.publications[0]?.state).toBeUndefined();
   });
 

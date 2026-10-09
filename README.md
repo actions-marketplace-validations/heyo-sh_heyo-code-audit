@@ -83,7 +83,9 @@ inline pull-request review. While the audit runs, Heyo adds an 👀 reaction to
 the pull request. It replaces it with 👍 only when there are no verified
 findings; otherwise it removes the 👀 reaction when the review finishes.
 Configure reporting, severity thresholds, paths, incremental runs, and commit
-limits in the Action inputs.
+limits in the Action inputs. Commit-limit skips remain neutral. An unexpected
+audit error returns `errored`, fails the Action job and, when reporting is still
+available, publishes a failed Check without advancing incremental state.
 
 ## Documentation
 

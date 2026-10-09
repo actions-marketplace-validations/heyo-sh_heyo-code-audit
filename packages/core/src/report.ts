@@ -64,6 +64,12 @@ export function neutralReport(input: {
   };
 }
 
+export function errorReport(
+  input: Parameters<typeof neutralReport>[0],
+): AuditReport {
+  return { ...neutralReport(input), conclusion: "failure" };
+}
+
 export function conclusionFor(
   findings: Finding[],
   failOn: AuditConfig["failOn"],
