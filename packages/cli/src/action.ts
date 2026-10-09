@@ -3,6 +3,7 @@ import * as core from "@actions/core";
 import {
   AuditService,
   parseAuditConfig,
+  redactSecrets,
   type AuditConfig,
   type AuditRepository,
   type RunOutcome,
@@ -137,6 +138,11 @@ export async function runAction(
   } else if (outcome.kind === "skipped") {
     dependencies.core.setOutput("conclusion", "neutral");
     dependencies.core.warning(outcome.report.summary);
+  } else if (outcome.kind === "errored") {
+    dependencies.core.setOutput("conclusion", "failure");
+    dependencies.core.setFailed(
+      `${outcome.report.summary} ${safeErrorDetail(outcome.error, config)}`,
+    );
   } else {
     dependencies.core.warning(
       "Heyo Code Audit did not publish because the pull request head changed during the run.",
@@ -217,6 +223,25 @@ async function finishReviewProgress(
       "Heyo Code Audit could not update its in-progress reaction on this pull request.",
     );
   }
+}
+
+function safeErrorDetail(error: unknown, config: AuditConfig): string {
+  let detail =
+    error instanceof Error
+      ? `${error.name}: ${error.message}`
+      : "Unknown audit error.";
+  const configuredSecrets = [
+    config.githubToken,
+    "token" in config.auth ? config.auth.token : undefined,
+  ];
+  for (const secret of configuredSecrets) {
+    if (secret) detail = detail.replaceAll(secret, "[REDACTED_SECRET]");
+  }
+  return redactSecrets(detail)
+    .replaceAll("\0", "")
+    .replaceAll(/\s+/g, " ")
+    .trim()
+    .slice(0, 500);
 }
 
 export async function eventPayload(
