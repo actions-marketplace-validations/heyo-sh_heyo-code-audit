@@ -1,5 +1,11 @@
 # @heyo-sh/heyo-code-audit
 
+## 1.2.1
+
+### Patch Changes
+
+- 72c7db3: Fail the Action job and published Check when an audit cannot complete, while preserving intentional commit-limit skips as neutral outcomes.
+
 ## 1.2.0
 
 ### Minor Changes
