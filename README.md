@@ -86,6 +86,9 @@ Configure reporting, severity thresholds, paths, incremental runs, and commit
 limits in the Action inputs. Commit-limit skips remain neutral. An unexpected
 audit error returns `errored`, fails the Action job and, when reporting is still
 available, publishes a failed Check without advancing incremental state.
+The Action log distinguishes Pi turn-limit and deadline failures from provider
+or runtime errors. Pi session errors are categorized by HTTP status or transport
+failure when possible, without logging the raw Pi error text.
 
 ## Documentation
 
