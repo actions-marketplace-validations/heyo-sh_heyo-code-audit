@@ -55,7 +55,11 @@ export class PiAuditRuntime implements AuditRuntime {
         if (turns > input.limits.maxTurns) agent.abort();
       }
     });
-    const timeout = setTimeout(agent.abort.bind(agent), input.limits.timeoutMs);
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      agent.abort();
+    }, input.limits.timeoutMs);
     try {
       await agent.prompt(
         "Perform the requested Heyo audit phase now. Return the required JSON object only.",
@@ -63,8 +67,18 @@ export class PiAuditRuntime implements AuditRuntime {
     } finally {
       clearTimeout(timeout);
     }
-    if (turns > input.limits.maxTurns || agent.state.errorMessage)
-      throw new Error("Pi audit session did not complete reliably.");
+    if (turns > input.limits.maxTurns)
+      throw new Error(
+        `Pi audit session exceeded the turn limit (${input.limits.maxTurns}).`,
+      );
+    if (timedOut)
+      throw new Error(
+        `Pi audit session timed out after ${input.limits.timeoutMs} ms.`,
+      );
+    if (agent.state.errorMessage)
+      throw new Error(
+        `Pi audit session failed: ${sessionErrorCategory(agent.state.errorMessage)}.`,
+      );
     const assistant = [...agent.state.messages]
       .reverse()
       .find((message) => message.role === "assistant");
@@ -85,6 +99,30 @@ export class PiAuditRuntime implements AuditRuntime {
       throw new Error("Pi audit response exceeded the output limit.");
     return JSON.parse(extractJson(text));
   }
+}
+
+// Never publish a provider error verbatim: it can contain credentials or PR content.
+// Only fixed categories and validated HTTP status codes may reach Action logs.
+function sessionErrorCategory(message: string): string {
+  const status =
+    message.match(
+      /^(?:HTTP\s+|status(?:\s+code)?\s*[=:]\s*)?([45]\d{2})\b/i,
+    )?.[1] ??
+    message.match(
+      /\b(?:HTTP\s+|status(?:\s+code)?\s*[=:]\s*)([45]\d{2})\b/i,
+    )?.[1];
+  if (status === "429") return "rate limited (HTTP 429)";
+  if (status === "401" || status === "403")
+    return `authentication or permission error (HTTP ${status})`;
+  if (status?.startsWith("5")) return `provider server error (HTTP ${status})`;
+  if (status) return `request rejected (HTTP ${status})`;
+  if (
+    /^(?:fetch failed|connection error|network error|ECONNRESET|ETIMEDOUT|ENOTFOUND)\b/i.test(
+      message,
+    )
+  )
+    return "network or transport error";
+  return "unclassified provider or runtime error";
 }
 
 function piAgentAuthOptions(
