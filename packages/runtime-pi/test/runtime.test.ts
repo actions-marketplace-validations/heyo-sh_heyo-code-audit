@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import {
   fauxAssistantMessage,
+  fauxToolCall,
   registerFauxProvider,
   type FauxProviderRegistration,
 } from "@mariozechner/pi-ai";
@@ -139,6 +140,73 @@ describe("Pi runtime helpers", () => {
       bearerToken: "bedrock-token",
       bearerRegion: "us-east-1",
     });
+  });
+
+  test("distinguishes the turn limit from a provider failure", async () => {
+    registration = registerFauxProvider({
+      api: "openai-responses",
+      provider: "openai",
+    });
+    registration.setResponses([
+      fauxAssistantMessage(fauxToolCall("read_pr_diff", {})),
+      fauxAssistantMessage('{"findings":[]}'),
+    ]);
+    const runtime = new PiAuditRuntime({ resolve: async () => snapshot });
+    await expect(
+      runtime.run({ ...input, limits: { ...input.limits, maxTurns: 1 } }),
+    ).rejects.toThrow("exceeded the turn limit (1)");
+  });
+
+  test("classifies provider errors without disclosing their raw messages", async () => {
+    registration = registerFauxProvider({
+      api: "openai-responses",
+      provider: "openai",
+    });
+    const runtime = new PiAuditRuntime({ resolve: async () => snapshot });
+    const secret = "sk_fakeSecret12345678901234567890";
+    for (const [raw, category] of [
+      [`429 Rate limit reached; token=${secret}`, "rate limited (HTTP 429)"],
+      [
+        `HTTP 401: invalid key ${secret}`,
+        "authentication or permission error (HTTP 401)",
+      ],
+      [`status=503; body=${secret}`, "provider server error (HTTP 503)"],
+      [
+        `API error: status=502; body=${secret}`,
+        "provider server error (HTTP 502)",
+      ],
+      [`HTTP 400: bad request ${secret}`, "request rejected (HTTP 400)"],
+      [`fetch failed: ${secret}`, "network or transport error"],
+      [
+        `unexpected response: ${secret}`,
+        "unclassified provider or runtime error",
+      ],
+    ] as const) {
+      registration.setResponses([
+        fauxAssistantMessage("", { stopReason: "error", errorMessage: raw }),
+      ]);
+      const failure = await runtime.run(input).then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+      expect(failure).toBeInstanceOf(Error);
+      expect((failure as Error).message).toContain(category);
+      expect((failure as Error).message).not.toContain(secret);
+      expect((failure as Error).message).not.toContain(raw);
+    }
+  });
+
+  test("reports deadline expiry separately from session errors", async () => {
+    registration = registerFauxProvider({
+      api: "openai-responses",
+      provider: "openai",
+      tokensPerSecond: 100,
+    });
+    registration.setResponses([fauxAssistantMessage('{"findings":[]}')]);
+    const runtime = new PiAuditRuntime({ resolve: async () => snapshot });
+    await expect(
+      runtime.run({ ...input, limits: { ...input.limits, timeoutMs: 1 } }),
+    ).rejects.toThrow("timed out after 1 ms");
   });
 
   test("fails closed for non-read-only permissions and missing provider output", async () => {
