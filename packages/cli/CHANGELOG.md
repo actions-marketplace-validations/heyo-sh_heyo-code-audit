@@ -1,5 +1,11 @@
 # @heyo-sh/heyo-code-audit
 
+## 1.2.2
+
+### Patch Changes
+
+- 830b149: Distinguish Pi audit session limits and timeouts from provider failures in Action logs without disclosing raw provider errors.
+
 ## 1.2.1
 
 ### Patch Changes
