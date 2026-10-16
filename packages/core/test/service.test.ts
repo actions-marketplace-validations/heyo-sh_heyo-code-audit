@@ -84,7 +84,9 @@ class FakeRuntime implements AuditRuntime {
   discovered: Finding[] = [candidate];
   discoveryCalls = 0;
   verificationCalls = 0;
+  limits: RuntimeInput["limits"][] = [];
   async run(input: RuntimeInput) {
+    this.limits.push(input.limits);
     if (input.phase === "discovery") {
       this.discoveryCalls += 1;
       return { findings: this.discovered };
@@ -136,6 +138,33 @@ describe("audit pipeline", () => {
       POLICY_VERSION,
     );
     expect(setup.publisher.publications[0]?.snapshot).toEqual({ diff: "diff" });
+  });
+
+  test("gives every phase the same session budget", async () => {
+    const setup = service();
+    await setup.audit.run(config);
+    const [discovery, ...rest] = setup.runtime.limits;
+    expect(discovery).toBeDefined();
+    expect(rest.length).toBeGreaterThan(0);
+    for (const limits of rest) expect(limits).toEqual(discovery!);
+  });
+
+  test("keeps the session budget usable for a high-thinking discovery pass", async () => {
+    const setup = service();
+    await setup.audit.run(config);
+    const limits = setup.runtime.limits[0]!;
+    // Reasoning tokens are drawn from the response budget, so a small
+    // `maxTokens` truncates answers and burns turns on continuations. Keep the
+    // two coupled: enough response budget to finish a turn, and enough turns to
+    // trace a change set across all enabled checks.
+    expect(limits.maxTokens).toBeGreaterThanOrEqual(32_000);
+    expect(limits.maxTurns).toBeGreaterThanOrEqual(40);
+    // A turn can call at least two tools before the tool budget, rather than the
+    // turn budget, ends the session.
+    expect(limits.maxToolCalls).toBeGreaterThanOrEqual(limits.maxTurns * 2);
+    // Verification runs one session per candidate sequentially, so the deadline
+    // has to leave room for several candidates inside a normal job timeout.
+    expect(limits.timeoutMs).toBeLessThanOrEqual(20 * 60_000);
   });
 
   test("uses a compatible state incrementally and re-verifies active findings", async () => {

@@ -19,15 +19,35 @@ import type {
   RuntimeInput,
 } from "./types.js";
 
+// Shared by both phases. Discovery explores the change set across every
+// enabled check; verification re-proves a single candidate. The budget is sized
+// for the harder discovery pass.
+//
+// `maxTurns` and `maxTokens` are coupled. The runtime requests a high thinking
+// level, so reasoning tokens are drawn from the per-response budget. A budget
+// that is too small truncates a response mid-answer, the agent takes another
+// turn to continue, and the turn limit is spent on thinking rather than on
+// analysis. Raising `maxTokens` therefore lowers turn consumption; the two must
+// be raised together.
+//
+// The byte and result caps are context-window guards, not budget. Raising them
+// far enough to overflow the model context fails a session harder than the turn
+// limit does, so they grow conservatively.
 const DEFAULT_LIMITS = {
-  maxTurns: 12,
-  maxToolCalls: 40,
-  maxTokens: 8_000,
-  maxFileBytes: 100_000,
-  maxSearchResults: 100,
+  maxTurns: 40,
+  maxToolCalls: 120,
+  // Clamped by the selected model in the Pi runtime, so this is an upper bound.
+  maxTokens: 32_000,
+  maxFileBytes: 200_000,
+  maxSearchResults: 200,
+  // The discovery prompt embeds the diff under its own fixed bound, so this
+  // only caps the read_pr_diff tool.
   maxDiffBytes: 160_000,
+  // Caps one JSON result, and the finding contract allows at most 20 findings.
   maxOutputBytes: 80_000,
-  timeoutMs: 15 * 60_000,
+  // Verification runs one session per candidate sequentially, so a run costs
+  // roughly this much per candidate. It must stay well inside the job timeout.
+  timeoutMs: 20 * 60_000,
 } as const;
 
 export class AuditService {
