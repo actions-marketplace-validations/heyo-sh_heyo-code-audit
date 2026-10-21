@@ -34,8 +34,8 @@ import type {
 // far enough to overflow the model context fails a session harder than the turn
 // limit does, so they grow conservatively.
 const DEFAULT_LIMITS = {
-  maxTurns: 40,
-  maxToolCalls: 120,
+  maxTurns: 120,
+  maxToolCalls: 360,
   // Clamped by the selected model in the Pi runtime, so this is an upper bound.
   maxTokens: 32_000,
   maxFileBytes: 200_000,
@@ -111,6 +111,7 @@ export class AuditService {
             snapshot,
             prTitle: pr.title,
             prBody: pr.body,
+            baseBranch: pr.baseBranch,
             scope,
           }),
         ),
@@ -126,7 +127,7 @@ export class AuditService {
         : discovery.findings;
       stage = "verifying candidate findings";
       const findings = config.verification
-        ? await this.verify(config, snapshot, candidates)
+        ? await this.verify(config, pr, snapshot, candidates)
         : candidates;
       const report = createReport({
         config,
@@ -205,6 +206,7 @@ export class AuditService {
 
   private async verify(
     config: AuditConfig,
+    pr: PullRequestContext,
     snapshot: Awaited<ReturnType<AuditRepository["getSnapshot"]>>,
     candidates: Finding[],
   ): Promise<Finding[]> {
@@ -215,7 +217,14 @@ export class AuditService {
           config,
           snapshot,
           "verification",
-          verificationPrompt({ candidate, snapshot, checks: config.checks }),
+          verificationPrompt({
+            candidate,
+            snapshot,
+            checks: config.checks,
+            prTitle: pr.title,
+            prBody: pr.body,
+            baseBranch: pr.baseBranch,
+          }),
         ),
       );
       if (!("verified" in result)) {

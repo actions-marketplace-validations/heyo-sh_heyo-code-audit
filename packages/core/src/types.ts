@@ -83,6 +83,7 @@ export interface PullRequestContext {
   repo: string;
   number: number;
   baseSha: string;
+  baseBranch: string;
   headSha: string;
   title: string;
   body: string;

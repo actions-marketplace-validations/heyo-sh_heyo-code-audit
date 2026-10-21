@@ -37,6 +37,7 @@ const pr: PullRequestContext = {
   repo: "audit",
   number: 7,
   baseSha: base,
+  baseBranch: "staging",
   headSha: head,
   title: "Title",
   body: "",
@@ -85,7 +86,7 @@ function fakeClient() {
       pulls: {
         get: async () => ({
           data: {
-            base: { sha: base },
+            base: { sha: base, ref: "staging" },
             head: { sha: head, repo: { fork: false } },
             title: "Title",
             body: null,
@@ -214,6 +215,7 @@ describe("GitHub adapter", () => {
     expect(await repository.getPullRequest()).toMatchObject({
       title: "Title",
       body: "",
+      baseBranch: "staging",
     });
     expect(await repository.findLatestState(pr)).toEqual(state);
     expect(await repository.isCurrentHead(pr, head)).toBe(true);
