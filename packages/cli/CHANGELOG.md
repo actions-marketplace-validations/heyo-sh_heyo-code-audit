@@ -1,5 +1,11 @@
 # @heyo-sh/heyo-code-audit
 
+## 1.3.1
+
+### Patch Changes
+
+- 1dbbdb5: Raise the default Pi turn limit to 120 and improve discovery and verification prompts to avoid unsupported deployment claims and intentional product-policy false positives while keeping repository exploration focused.
+
 ## 1.3.0
 
 ### Minor Changes

@@ -29,6 +29,7 @@ const pr: PullRequestContext = {
   repo: "audit",
   number: 1,
   baseSha: "a".repeat(40),
+  baseBranch: "staging",
   headSha: "b".repeat(40),
   title: "Title",
   body: "Body",
@@ -217,23 +218,42 @@ test("marks every repository-provided prompt section as untrusted", () => {
     snapshot,
     prTitle: "title",
     prBody: "body",
+    baseBranch: "staging",
     scope: "full",
   });
   expect(prompt).toContain("<untrusted-diff>");
   expect(prompt).toContain("optional suggestion field");
+  expect(prompt).toContain("<untrusted-pr-target-branch>\nstaging");
+  expect(prompt).toContain("A target branch is not evidence of deployment");
+  expect(prompt).toContain("deliberate change to a supported product policy");
   expect(
     verificationPrompt({
       checks: ["security"],
       snapshot,
       candidate: finding(),
+      prTitle: "title",
+      prBody: "body",
+      baseBranch: "staging",
     }),
   ).toContain("<untrusted-candidate>");
+  const verification = verificationPrompt({
+    checks: ["security"],
+    snapshot,
+    candidate: finding(),
+    prTitle: "title",
+    prBody: "body",
+    baseBranch: "staging",
+  });
+  expect(verification).toContain("<untrusted-pr-description>\nbody");
+  expect(verification).toContain("<untrusted-pr-target-branch>\nstaging");
+  expect(verification).toContain("intentionally removed option");
   expect(
     discoveryPrompt({
       checks: ["security"],
       snapshot: { ...snapshot, diff: "token=abcdefghijklmnopqrstuvwxyz" },
       prTitle: "title",
       prBody: "body",
+      baseBranch: "staging",
       scope: "full",
     }),
   ).toContain("[REDACTED_SECRET]");
