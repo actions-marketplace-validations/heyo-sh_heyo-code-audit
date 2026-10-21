@@ -91,6 +91,7 @@ export class GitHubAuditRepository implements AuditRepository {
       repo: this.environment.repo,
       number: this.environment.prNumber,
       baseSha: data.base.sha,
+      baseBranch: data.base.ref,
       headSha: data.head.sha,
       title: data.title,
       body: data.body ?? "",

@@ -20,6 +20,7 @@ const pr: PullRequestContext = {
   repo: "audit",
   number: 4,
   baseSha: "a".repeat(40),
+  baseBranch: "staging",
   headSha: "b".repeat(40),
   title: "Add account lookup",
   body: "",
@@ -85,8 +86,10 @@ class FakeRuntime implements AuditRuntime {
   discoveryCalls = 0;
   verificationCalls = 0;
   limits: RuntimeInput["limits"][] = [];
+  prompts: string[] = [];
   async run(input: RuntimeInput) {
     this.limits.push(input.limits);
+    this.prompts.push(input.internalPrompt);
     if (input.phase === "discovery") {
       this.discoveryCalls += 1;
       return { findings: this.discovered };
@@ -138,6 +141,10 @@ describe("audit pipeline", () => {
       POLICY_VERSION,
     );
     expect(setup.publisher.publications[0]?.snapshot).toEqual({ diff: "diff" });
+    for (const prompt of setup.runtime.prompts) {
+      expect(prompt).toContain("<untrusted-pr-target-branch>\nstaging");
+      expect(prompt).toContain("<untrusted-pr-title>\nAdd account lookup");
+    }
   });
 
   test("gives every phase the same session budget", async () => {
@@ -158,7 +165,7 @@ describe("audit pipeline", () => {
     // two coupled: enough response budget to finish a turn, and enough turns to
     // trace a change set across all enabled checks.
     expect(limits.maxTokens).toBeGreaterThanOrEqual(32_000);
-    expect(limits.maxTurns).toBeGreaterThanOrEqual(40);
+    expect(limits.maxTurns).toBe(120);
     // A turn can call at least two tools before the tool budget, rather than the
     // turn budget, ends the session.
     expect(limits.maxToolCalls).toBeGreaterThanOrEqual(limits.maxTurns * 2);
