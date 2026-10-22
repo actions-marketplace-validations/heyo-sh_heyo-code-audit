@@ -48,7 +48,12 @@ class FakeRepository implements AuditRepository {
   commits = 1;
   ancestor = true;
   current = true;
-  snapshots: Array<{ base: string; head: string; paths: string[] }> = [];
+  snapshots: Array<{
+    base: string;
+    head: string;
+    paths: string[];
+    guidanceBase: string;
+  }> = [];
   async getPullRequest() {
     return pr;
   }
@@ -56,14 +61,23 @@ class FakeRepository implements AuditRepository {
     baseSha: string,
     headSha: string,
     paths: string[],
+    guidanceBaseSha = baseSha,
   ): Promise<RepositorySnapshot> {
-    this.snapshots.push({ base: baseSha, head: headSha, paths });
+    this.snapshots.push({
+      base: baseSha,
+      head: headSha,
+      paths,
+      guidanceBase: guidanceBaseSha,
+    });
     return {
       repositoryPath: "/repo",
       baseSha,
       headSha,
       diff: "diff",
       changedPaths: ["src/route.ts"],
+      guidance: [
+        { path: "AGENTS.md", content: "All routes must validate the tenant." },
+      ],
       commits: [],
     };
   }
@@ -133,7 +147,12 @@ describe("audit pipeline", () => {
     const outcome = await setup.audit.run(config);
     expect(outcome.kind).toBe("published");
     expect(setup.repository.snapshots).toEqual([
-      { base: pr.baseSha, head: pr.headSha, paths: [] },
+      {
+        base: pr.baseSha,
+        head: pr.headSha,
+        paths: [],
+        guidanceBase: pr.baseSha,
+      },
     ]);
     expect(setup.runtime.discoveryCalls).toBe(1);
     expect(setup.runtime.verificationCalls).toBe(1);
@@ -144,6 +163,9 @@ describe("audit pipeline", () => {
     for (const prompt of setup.runtime.prompts) {
       expect(prompt).toContain("<untrusted-pr-target-branch>\nstaging");
       expect(prompt).toContain("<untrusted-pr-title>\nAdd account lookup");
+      expect(prompt).toContain(
+        "AGENTS.md:\nAll routes must validate the tenant.",
+      );
     }
   });
 
@@ -189,6 +211,7 @@ describe("audit pipeline", () => {
     const setup = service(repository, runtime);
     await setup.audit.run(config);
     expect(repository.snapshots[0]?.base).toBe("c".repeat(40));
+    expect(repository.snapshots[0]?.guidanceBase).toBe(pr.baseSha);
     expect(runtime.verificationCalls).toBe(2);
     expect(setup.publisher.publications[0]?.state?.findings).toHaveLength(1);
   });

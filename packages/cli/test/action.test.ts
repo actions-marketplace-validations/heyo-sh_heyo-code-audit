@@ -361,6 +361,7 @@ test("builds the production service and pins Pi snapshots to the workspace", asy
         headSha: requestedHead,
         diff: "",
         changedPaths: [],
+        guidance: [],
         commits: [],
       };
     },

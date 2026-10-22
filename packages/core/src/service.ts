@@ -99,6 +99,7 @@ export class AuditService {
         decision.fromSha,
         pr.headSha,
         config.paths,
+        pr.baseSha,
       );
       stage = "running discovery";
       const discovery = await this.dependencies.runtime.run(
