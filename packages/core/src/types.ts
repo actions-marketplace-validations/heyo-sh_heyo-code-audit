@@ -100,6 +100,8 @@ export interface RepositorySnapshot {
   headSha: string;
   diff: string;
   changedPaths: string[];
+  /** Applicable AGENTS.md files from the PR target's base commit. */
+  guidance: Array<{ path: string; content: string }>;
   commits: CommitMetadata[];
 }
 
@@ -150,6 +152,7 @@ export interface AuditRepository {
     baseSha: string,
     headSha: string,
     paths: string[],
+    guidanceBaseSha?: string,
   ): Promise<RepositorySnapshot>;
   countCommits(baseSha: string, headSha: string): Promise<number>;
   isAncestor(ancestor: string, descendant: string): Promise<boolean>;

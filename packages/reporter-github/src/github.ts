@@ -24,6 +24,9 @@ import {
 const execFileAsync = promisify(execFile);
 const CHECK_NAME = "Heyo Code Audit";
 const MAX_DIFF_BYTES = 160_000;
+const MAX_GUIDANCE_BYTES = 64_000;
+const MAX_GUIDANCE_FILE_BYTES = 16_000;
+const MAX_GUIDANCE_FILES = 24;
 const MAX_CHECK_SUMMARY_CHARS = 65_000;
 
 export interface GitHubEnvironment {
@@ -102,9 +105,11 @@ export class GitHubAuditRepository implements AuditRepository {
     baseSha: string,
     headSha: string,
     paths: string[],
+    guidanceBaseSha = baseSha,
   ): Promise<RepositorySnapshot> {
     assertSha(baseSha);
     assertSha(headSha);
+    assertSha(guidanceBaseSha);
     const changedPaths = (
       await git(this.environment.repositoryPath, [
         "diff",
@@ -138,12 +143,18 @@ export class GitHubAuditRepository implements AuditRepository {
         ])
       ).stdout,
     );
+    const guidance = await scopedGuidance(
+      this.environment.repositoryPath,
+      guidanceBaseSha,
+      changedPaths,
+    );
     return {
       repositoryPath: this.environment.repositoryPath,
       baseSha,
       headSha,
       diff,
       changedPaths,
+      guidance,
       commits,
     };
   }
@@ -333,6 +344,68 @@ export function createGitHubClient(token: string): Octokit {
 function assertSha(value: string): void {
   if (!/^[0-9a-f]{7,64}$/i.test(value))
     throw new Error("Invalid git SHA supplied by GitHub.");
+}
+
+async function scopedGuidance(
+  cwd: string,
+  baseSha: string,
+  changedPaths: string[],
+): Promise<RepositorySnapshot["guidance"]> {
+  if (changedPaths.length === 0) return [];
+  const candidates = new Set(["AGENTS.md"]);
+  for (const file of changedPaths) {
+    const parts = file.split("/");
+    for (let depth = 1; depth < parts.length; depth += 1) {
+      candidates.add(`${parts.slice(0, depth).join("/")}/AGENTS.md`);
+    }
+  }
+  const tree = await git(
+    cwd,
+    ["ls-tree", "-r", "-z", "--full-tree", baseSha, "--", ...candidates],
+    2_000_000,
+  );
+  const entries = tree.stdout
+    .split("\0")
+    .flatMap((record) => {
+      const match = /^(100644|100755) blob ([a-f0-9]{40,64})\t(.+)$/s.exec(
+        record,
+      );
+      return match?.[2] && match[3] && candidates.has(match[3])
+        ? [{ oid: match[2], path: match[3] }]
+        : [];
+    })
+    .sort(
+      (a, b) =>
+        a.path.split("/").length - b.path.split("/").length ||
+        a.path.localeCompare(b.path),
+    );
+  if (entries.length > MAX_GUIDANCE_FILES)
+    throw new Error("Too many applicable AGENTS.md files to audit safely.");
+
+  const guidance: RepositorySnapshot["guidance"] = [];
+  let total = 0;
+  for (const entry of entries) {
+    const size = Number(
+      (await git(cwd, ["cat-file", "-s", entry.oid])).stdout.trim(),
+    );
+    if (
+      !Number.isSafeInteger(size) ||
+      size < 0 ||
+      size > MAX_GUIDANCE_FILE_BYTES ||
+      total + size + Buffer.byteLength(entry.path) + 3 > MAX_GUIDANCE_BYTES
+    )
+      throw new Error("Applicable AGENTS.md exceeds the audit guidance limit.");
+    const content = (
+      await git(
+        cwd,
+        ["cat-file", "blob", entry.oid],
+        MAX_GUIDANCE_FILE_BYTES + 1,
+      )
+    ).stdout;
+    total += Buffer.byteLength(content) + Buffer.byteLength(entry.path) + 3;
+    guidance.push({ path: entry.path, content });
+  }
+  return guidance;
 }
 
 async function git(
