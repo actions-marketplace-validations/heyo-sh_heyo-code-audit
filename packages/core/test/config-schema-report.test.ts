@@ -233,6 +233,15 @@ test("marks every repository-provided prompt section as untrusted", () => {
   expect(prompt).toContain("<untrusted-pr-target-branch>\nstaging");
   expect(prompt).toContain("A target branch is not evidence of deployment");
   expect(prompt).toContain("deliberate change to a supported product policy");
+  expect(prompt).toContain("Do not nitpick or invent product requirements");
+  expect(prompt).toContain("An alternative UX, business rule, feature rollout");
+  expect(prompt).toContain("do not demand preservation of the old behavior");
+  expect(prompt).toContain(
+    "consistent edits alone do not excuse demonstrated security failures",
+  );
+  expect(prompt).toContain(
+    "an owner could reasonably accept the changed behavior as a product decision",
+  );
   expect(prompt).toContain("<untrusted-applicable-agents-md-guidance>");
   expect(prompt).toContain(
     "AGENTS.md:\nValidate requests before reading data.",
@@ -264,6 +273,15 @@ test("marks every repository-provided prompt section as untrusted", () => {
   expect(verification).toContain("intentionally removed option");
   expect(verification).toContain("<untrusted-applicable-agents-md-guidance>");
   expect(verification).toContain("Confirm the rule existed in the target base");
+  expect(verification).toContain(
+    "Do not nitpick or invent product requirements",
+  );
+  expect(verification).toContain(
+    "AGENTS.md examples, suggestions, and aspirations as context",
+  );
+  expect(verification).toContain(
+    "Do not upgrade a plausible preference into a defect",
+  );
   expect(
     discoveryPrompt({
       checks: ["security"],

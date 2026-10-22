@@ -33,7 +33,9 @@ paths, with the nearest file taking precedence. Concrete violations can be
 reported on changed lines. Guidance is bounded and treated as untrusted for
 auditor operations; changes to `AGENTS.md` in the PR cannot rewrite the rules
 used to review that PR. If applicable guidance exceeds the limit, the audit
-fails rather than silently ignoring it.
+fails rather than silently ignoring it. Audits reject speculative findings and
+plausible product decisions unless changed code demonstrably violates an
+applicable rule or a supported behavior contract.
 
 ## Get started
 
