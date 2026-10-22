@@ -64,6 +64,7 @@ async function fixture() {
     headSha: input.headSha,
     diff: "diff token=abcdefghijklmnopqrstuvwxyz",
     changedPaths: ["src/app.ts"],
+    guidance: [],
     commits: [],
   };
   return { root, input, snapshot };

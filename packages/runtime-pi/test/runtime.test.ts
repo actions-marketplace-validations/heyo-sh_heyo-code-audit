@@ -45,6 +45,7 @@ const snapshot: RepositorySnapshot = {
   headSha: input.headSha,
   diff: "",
   changedPaths: [],
+  guidance: [],
   commits: [],
 };
 
