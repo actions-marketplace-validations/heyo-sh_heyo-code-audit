@@ -1,5 +1,12 @@
 # @heyo-sh/heyo-code-audit
 
+## 1.3.3
+
+### Patch Changes
+
+- 80adb4e: Update the bundled OpenTelemetry API to 1.10.0.
+- cca68ab: Update the bundled TypeBox dependency to 1.4.3.
+
 ## 1.3.2
 
 ### Patch Changes
